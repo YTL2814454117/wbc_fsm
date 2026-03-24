@@ -1,6 +1,35 @@
 #include "interface/IOSDK.h"
 #include <stdio.h>
 #include <iostream>
+// --- 新增头文件开始 ---
+#include <termios.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <thread>
+// --- 新增头文件结束 ---
+
+// --- 新增：Linux 无阻塞键盘检测函数 ---
+int kbhit(void)
+{
+    struct termios oldt, newt;
+    int ch;
+    int oldf;
+    tcgetattr(STDIN_FILENO, &oldt);
+    newt = oldt;
+    newt.c_lflag &= ~(ICANON | ECHO); // 取消回车确认和按键回显
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+    oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
+    fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
+    ch = getchar();
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    fcntl(STDIN_FILENO, F_SETFL, oldf);
+    if (ch != EOF)
+    {
+        ungetc(ch, stdin);
+        return 1;
+    }
+    return 0;
+}
 
 uint32_t crc32_core(uint32_t *ptr, uint32_t len)
 {
@@ -34,21 +63,141 @@ uint32_t crc32_core(uint32_t *ptr, uint32_t len)
     return CRC32;
 }
 
+// 构造函数的实现
 IOSDK::IOSDK()
 {
     // ChannelFactory::Instance()->Init(0, "eth0"); // eth0 for real robot
-    ChannelFactory::Instance()->Init(1, "lo"); // lo for simulation
+    ChannelFactory::Instance()->Init(1, "lo"); // lo for simulation 强制绑定lo本地网卡
 
+    // 创建了发布者和订阅者通道
     lowcmd_publisher_.reset(new ChannelPublisher<LowCmd_>(HG_CMD_TOPIC));
     lowcmd_publisher_->InitChannel();
 
     lowstate_subscriber_.reset(new ChannelSubscriber<LowState_>(HG_STATE_TOPIC));
     lowstate_subscriber_->InitChannel(std::bind(&IOSDK::LowStateHandler, this, std::placeholders::_1), 1);
 
+    // 计数器归零
     counter_ = 0;
     userCmd_ = UserCommand::NONE;
     userValue_.setZero();
     mode_machine_ = 0;
+
+    // --- 新增：启动后台键盘监听线程 ---
+    std::thread([this]()
+                {
+        while (true) {
+            if (kbhit()) {
+                char c = getchar();
+                switch (c)
+                {
+                // ================= 核心状态切换 (数字键) =================
+                case '0':
+                    userCmd_ = UserCommand::SELECT;
+                    std::cout << "\n[Key] EXIT (SELECT)" << std::endl;
+                    break;
+                case '1':
+                    userCmd_ = UserCommand::START;
+                    std::cout << "\n[Key] FIXED POSE (START)" << std::endl;
+                    break;
+                case '2':
+                    userCmd_ = UserCommand::R2_A;
+                    std::cout << "\n[Key] LOCO MODE (R2_A)" << std::endl;
+                    break;
+                case '3':
+                    userCmd_ = UserCommand::R1_UP;
+                    std::cout << "\n[Key] WBC MODE (R1_UP)" << std::endl;
+                    break;
+                case '4':
+                    userCmd_ = UserCommand::R1_LEFT;
+                    std::cout << "\n[Key] WBC LEFT (R1_LEFT)" << std::endl;
+                    break;
+                case '5':
+                    userCmd_ = UserCommand::R1_RIGHT;
+                    std::cout << "\n[Key] WBC RIGHT (R1_RIGHT)" << std::endl;
+                    break;
+
+                // ================= 运动控制与暂停 (功能键) =================
+                case 'p':
+                    userCmd_ = UserCommand::L2_B;
+                    std::cout << "\n[Key] PASSIVE (L2_B)" << std::endl;
+                    break;
+                case '[':
+                    userCmd_ = UserCommand::R2;
+                    std::cout << "\n[Key] PAUSE IN SETTED IDX (R2)" << std::endl;
+                    break;
+                case ']':
+                    userCmd_ = UserCommand::R1;
+                    std::cout << "\n[Key] MOTION CONTINUE (R1)" << std::endl;
+                    break;
+                case 'l':
+                    userCmd_ = UserCommand::L2;
+                    std::cout << "\n[Key] PAUSE IN CURRENT IDX (L2)" << std::endl;
+                    break;
+                case 'b':
+                    userCmd_ = UserCommand::R2_B;
+                    std::cout << "\n[Key] BACK TO LOCO FROM AMP (R2_B)" << std::endl;
+                    break;
+
+                // ================= 速度档位调节 =================
+                case '+':
+                case '=':
+                    userCmd_ = UserCommand::R2_UP;
+                    std::cout << "\n[Key] HIGH SPEED MODE (R2_UP)" << std::endl;
+                    break;
+                case '-':
+                    userCmd_ = UserCommand::R2_DOWN;
+                    std::cout << "\n[Key] LOW SPEED MODE (R2_DOWN)" << std::endl;
+                    break;
+
+                    // ================= 摇杆速度控制 (WASD + QE) =================
+                    // ================= 纯净版摇杆控制 =================
+                case 'w':
+                    userValue_.ly = 0.5; // 前进
+                    userValue_.lx = 0.0; // 强制清零侧移
+                    userValue_.rx = 0.0; // 强制清零转向
+                    std::cout << "\n[Key] Forward (Pure)" << std::endl;
+                    break;
+                case 's':
+                    userValue_.ly = -0.5;
+                    userValue_.lx = 0.0;
+                    userValue_.rx = 0.0;
+                    std::cout << "\n[Key] Backward (Pure)" << std::endl;
+                    break;
+                case 'a':
+                    userValue_.lx = 0.5;
+                    userValue_.ly = 0.0;
+                    userValue_.rx = 0.0;
+                    std::cout << "\n[Key] Left Strafing" << std::endl;
+                    break;
+                case 'd':
+                    userValue_.lx = -0.5;
+                    userValue_.ly = 0.0;
+                    userValue_.rx = 0.0;
+                    std::cout << "\n[Key] Right Strafing" << std::endl;
+                    break;
+                // 保留单独的转向键，用来手动纠偏
+                case 'q':
+                    userValue_.rx = 0.5;
+                    std::cout << "\n[Key] Turn Left" << std::endl;
+                    break;
+                case 'e':
+                    userValue_.rx = -0.5;
+                    std::cout << "\n[Key] Turn Right" << std::endl;
+                    break;
+
+                // ================= 紧急刹车 =================
+                case ' ':
+                    userValue_.lx = 0;
+                    userValue_.ly = 0;
+                    userValue_.rx = 0;
+                    std::cout << "\n[Key] STOP!" << std::endl;
+                    break;
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(20)); // 休息20ms，防止吃光CPU
+        } })
+        .detach(); // 让这个线程在后台默默运行
+    // --- 新增结束 ---
 }
 
 void IOSDK::sendRecv(const LowlevelCmd *cmd, LowlevelState *state)
@@ -59,7 +208,7 @@ void IOSDK::sendRecv(const LowlevelCmd *cmd, LowlevelState *state)
     dds_low_command.mode_machine() = mode_machine_;
     for (size_t i = 0; i < G1_NUM_MOTOR; i++)
     {
-        
+
         dds_low_command.motor_cmd().at(i).mode() = 1; // 1:Enable, 0:Disable
         dds_low_command.motor_cmd().at(i).tau() = cmd->motorCmd[i].tau;
         dds_low_command.motor_cmd().at(i).q() = cmd->motorCmd[i].q;
@@ -104,7 +253,7 @@ void IOSDK::LowStateHandler(const void *message)
         _lowState.motorState[i].q = low_state.motor_state()[i].q();
         _lowState.motorState[i].dq = low_state.motor_state()[i].dq();
     }
-    
+
     // get imu state
     _lowState.imu.gyroscope[0] = low_state.imu_state().gyroscope()[0];
     _lowState.imu.gyroscope[1] = low_state.imu_state().gyroscope()[1];
@@ -131,16 +280,17 @@ void IOSDK::LowStateHandler(const void *message)
         mode_machine_ = low_state.mode_machine();
     }
 
-    if(gamepad_.start.pressed)
+    /*
+    if (gamepad_.start.pressed)
     {
-        userCmd_ = UserCommand::START;          
+        userCmd_ = UserCommand::START;
     }
-    if(gamepad_.select.pressed)
+    if (gamepad_.select.pressed)
     {
-        userCmd_ = UserCommand::SELECT; 
+        userCmd_ = UserCommand::SELECT;
     }
 
-    if(gamepad_.R2.pressed)
+    if (gamepad_.R2.pressed)
     {
         userCmd_ = UserCommand::R2;
     }
@@ -148,7 +298,7 @@ void IOSDK::LowStateHandler(const void *message)
     {
         userCmd_ = UserCommand::L2;
     }
-    if(gamepad_.R1.pressed)
+    if (gamepad_.R1.pressed)
     {
         userCmd_ = UserCommand::R1;
     }
@@ -189,4 +339,5 @@ void IOSDK::LowStateHandler(const void *message)
     userValue_.ly = gamepad_.ly;
     userValue_.rx = -gamepad_.rx;
     userValue_.ry = gamepad_.ry;
+    */
 }

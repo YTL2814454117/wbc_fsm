@@ -21,9 +21,10 @@ using namespace unitree::robot;
 using namespace unitree_hg::msg::dds_;
 
 const int G1_NUM_MOTOR = 29;
-enum class Mode {
-  PR = 0,  // Series Control for Ptich/Roll Joints
-  AB = 1   // Parallel Control for A/B Joints
+enum class Mode
+{
+    PR = 0, // Series Control for Ptich/Roll Joints
+    AB = 1  // Parallel Control for A/B Joints
 };
 
 class IOSDK : public IOInterface
@@ -43,14 +44,9 @@ private:
     void LowStateHandler(const void *message);
 
 public:
-    IOSDK(/* args */);
-    ~IOSDK(){}
+    IOSDK(/* args */); // 构造函数,无返回值
+    ~IOSDK() {}        // 析构函数
     void sendRecv(const LowlevelCmd *cmd, LowlevelState *state);
 };
 
-
-
-
-
-
-#endif //IOSDK_H
+#endif // IOSDK_H
