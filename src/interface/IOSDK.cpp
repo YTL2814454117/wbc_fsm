@@ -200,41 +200,42 @@ IOSDK::IOSDK()
     // --- 新增结束 ---
 }
 
+// 发送接收函数的实现
 void IOSDK::sendRecv(const LowlevelCmd *cmd, LowlevelState *state)
 {
     // send control cmd
-    LowCmd_ dds_low_command;
-    dds_low_command.mode_pr() = static_cast<uint8_t>(Mode::PR);
+    LowCmd_ dds_low_command;                                    // dds是宇树内部通信的消息格式，LowCmd_是发送给底层的控制命令消息类型
+    dds_low_command.mode_pr() = static_cast<uint8_t>(Mode::PR); // 按照底层控制模式要求设置mode_pr字段
     dds_low_command.mode_machine() = mode_machine_;
-    for (size_t i = 0; i < G1_NUM_MOTOR; i++)
+    for (size_t i = 0; i < G1_NUM_MOTOR; i++) // 遍历29个电机，将控制命令中的数据填充到dds_low_command的motor_cmd字段中
     {
 
-        dds_low_command.motor_cmd().at(i).mode() = 1; // 1:Enable, 0:Disable
-        dds_low_command.motor_cmd().at(i).tau() = cmd->motorCmd[i].tau;
-        dds_low_command.motor_cmd().at(i).q() = cmd->motorCmd[i].q;
-        dds_low_command.motor_cmd().at(i).dq() = cmd->motorCmd[i].dq;
-        dds_low_command.motor_cmd().at(i).kp() = cmd->motorCmd[i].Kp;
-        dds_low_command.motor_cmd().at(i).kd() = cmd->motorCmd[i].Kd;
+        dds_low_command.motor_cmd().at(i).mode() = 1;                   // 1:Enable, 0:Disable
+        dds_low_command.motor_cmd().at(i).tau() = cmd->motorCmd[i].tau; // 电机力矩
+        dds_low_command.motor_cmd().at(i).q() = cmd->motorCmd[i].q;     // 关节位置
+        dds_low_command.motor_cmd().at(i).dq() = cmd->motorCmd[i].dq;   // 关节速度
+        dds_low_command.motor_cmd().at(i).kp() = cmd->motorCmd[i].Kp;   // 位置环刚度
+        dds_low_command.motor_cmd().at(i).kd() = cmd->motorCmd[i].Kd;   // 微分系数
         // std::cout<<"des_q: "<<dds_low_command.motor_cmd().at(i).q()<<std::endl;
     }
 
-    dds_low_command.crc() = crc32_core((uint32_t *)&dds_low_command, (sizeof(dds_low_command) >> 2) - 1);
-    bool wrt = lowcmd_publisher_->Write(dds_low_command);
+    dds_low_command.crc() = crc32_core((uint32_t *)&dds_low_command, (sizeof(dds_low_command) >> 2) - 1); // 计算CRC校验码，并填充到dds_low_command的crc字段中
+    bool wrt = lowcmd_publisher_->Write(dds_low_command);                                                 // 将控制命令发布到DDS通道，发送给底层控制器
 
     for (int i = 0; i < G1_NUM_MOTOR; i++)
     {
-        state->motorState[i].q = _lowState.motorState[i].q;
+        state->motorState[i].q = _lowState.motorState[i].q; // 从接收到的_lowState中读取电机状态数据，填充到输出参数state中，以供上层状态机使用
         state->motorState[i].dq = _lowState.motorState[i].dq;
     }
     for (int i = 0; i < 3; i++)
     {
-        state->imu.quaternion[i] = _lowState.imu.quaternion[i];
+        state->imu.quaternion[i] = _lowState.imu.quaternion[i]; // 填充IMU状态数据
         state->imu.accelerometer[i] = _lowState.imu.accelerometer[i];
         state->imu.gyroscope[i] = _lowState.imu.gyroscope[i];
     }
     state->imu.quaternion[3] = _lowState.imu.quaternion[3];
 
-    state->userCmd = userCmd_;
+    state->userCmd = userCmd_; // 键盘或者手柄输入的用户命令
     state->userValue = userValue_;
 }
 

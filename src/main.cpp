@@ -24,49 +24,51 @@
 #include "control/CtrlComponents.h"
 #include "interface/IOSDK.h"
 
-bool running = true;  
+bool running = true;
 
-
-void ShutDown(int sig) 
+void ShutDown(int sig)
 {
     std::cout << "stop the controller" << std::endl;
     running = false;
 }
 
-void setProcessScheduler()  // 实时调度设置
+void setProcessScheduler() // 进程实时调度设置
 {
-    pid_t pid = getpid();
+    pid_t pid = getpid(); // 获取程序的进程号
     sched_param param;
-    param.sched_priority = sched_get_priority_max(SCHED_FIFO);
-    if (sched_setscheduler(pid, SCHED_FIFO, &param) == -1)
+    param.sched_priority = sched_get_priority_max(SCHED_FIFO); // 设置为最高优先级
+    if (sched_setscheduler(pid, SCHED_FIFO, &param) == -1)     // 向操作系统注册调度策略和优先级
     {
         std::cout << "[ERROR] Function setProcessScheduler failed." << std::endl;
     }
 }
 
-int main(int argc, char **argv) {
-    
+int main(int argc, char **argv)
+{
+
     setProcessScheduler();
-    std::cout << std::fixed << std::setprecision(3);
-    IOInterface *ioInter;
-    CtrlPlatform ctrlPlat;
+    std::cout << std::fixed << std::setprecision(3); // 设置终端打印浮点数的精度为小数点后3位
+    IOInterface *ioInter;                            // 接口类
+    CtrlPlatform ctrlPlat;                           // 定义控制平台
 
-    ioInter = new IOSDK();
-    ctrlPlat = CtrlPlatform::REALROBOT;
+    ioInter = new IOSDK();              // 接口的实现
+    ctrlPlat = CtrlPlatform::REALROBOT; // API级别硬件仿真
 
-    CtrlComponents *ctrlComp = new CtrlComponents(ioInter);
+    CtrlComponents *ctrlComp = new CtrlComponents(ioInter); // 实现接口类的控制组件
     ctrlComp->ctrlPlatform = ctrlPlat;
-    ctrlComp->dt = 0.02;
+    ctrlComp->dt = 0.02; // 控制周期为20ms
     ctrlComp->running = &running;
 
-    ControlFrame ctrlFrame(ctrlComp);
-    signal(SIGINT, ShutDown);
+    ControlFrame ctrlFrame(ctrlComp); // 控制框架，包含状态机和控制组件
+    signal(SIGINT, ShutDown);         // 注册信号处理函数，当接收到SIGINT信号时调用ShutDown函数
 
-    while (running) {
-        if (ctrlComp->exitFlag) break;
+    while (running)
+    {
+        if (ctrlComp->exitFlag)
+            break;
         ctrlFrame.run();
     }
 
-    delete ctrlComp;
+    delete ctrlComp; // 释放控制组件资源
     return 0;
 }
