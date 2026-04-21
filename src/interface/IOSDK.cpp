@@ -155,24 +155,28 @@ IOSDK::IOSDK()
                     userValue_.ly = 0.5; // 前进
                     userValue_.lx = 0.0; // 强制清零侧移
                     userValue_.rx = 0.0; // 强制清零转向
+                    userValue_.ry = 0.0; // 保持不变
                     std::cout << "\n[Key] Forward (Pure)" << std::endl;
                     break;
                 case 's':
                     userValue_.ly = -0.5;
                     userValue_.lx = 0.0;
                     userValue_.rx = 0.0;
+                    userValue_.ry = 0.0;
                     std::cout << "\n[Key] Backward (Pure)" << std::endl;
                     break;
                 case 'a':
-                    userValue_.lx = 0.5;
+                    userValue_.lx = 0.0;
                     userValue_.ly = 0.0;
-                    userValue_.rx = 0.0;
+                    userValue_.rx = 0.5;
+                    userValue_.ry = 0.0;
                     std::cout << "\n[Key] Left Strafing" << std::endl;
                     break;
                 case 'd':
-                    userValue_.lx = -0.5;
+                    userValue_.lx = 0.0;
                     userValue_.ly = 0.0;
-                    userValue_.rx = 0.0;
+                    userValue_.rx = -0.5;
+                    userValue_.ry = 0.0;
                     std::cout << "\n[Key] Right Strafing" << std::endl;
                     break;
                 // 保留单独的转向键，用来手动纠偏

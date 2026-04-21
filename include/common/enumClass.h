@@ -4,58 +4,64 @@
 #include <iostream>
 #include <sstream>
 
-enum class CtrlPlatform{
+enum class CtrlPlatform
+{
     MUJOCO,
     REALROBOT,
 };
 
-enum class RobotType{
+enum class RobotType
+{
     A1,
     Go1
 };
 
 enum class UserCommand
-{   
+{
     NONE,
     SELECT, // exit,
-    START, // fixed pose
+    START,  // fixed pose
     // F1,  // passive
-    R2, // motion pause in setted refer idx
-    R1, // motion continue
-    R2_A, // loco_mode
-    R1_UP, //wbc
-    R1_LEFT, // wbcleft
+    R2,       // motion pause in setted refer idx
+    R1,       // motion continue
+    R2_A,     // loco_mode
+    R1_UP,    // wbc
+    R1_LEFT,  // wbcleft
     R1_RIGHT, // wbcright
-    L2_B, // passive
-    L2, // pause in current refer idx
-    R2_UP, //high speed mode
-    R2_DOWN, //low speed mode
-    R2_B, // back to loco from amp
-    
+    L2_B,     // passive
+    L2,       // pause in current refer idx
+    R2_UP,    // high speed mode
+    R2_DOWN,  // low speed mode
+    R2_B,     // back to loco from amp
+
 };
 
-enum class FrameType{
+enum class FrameType
+{
     BODY,
     HIP,
     GLOBAL
 };
 
-enum class WaveStatus{
+enum class WaveStatus
+{
     STANCE_ALL,
     SWING_ALL,
     WAVE_ALL
 };
 
-enum class FSMMode{
+enum class FSMMode
+{
     NORMAL,
     CHANGE
 };
 
-enum class FSMStateName{
+enum class FSMStateName
+{
     // EXIT,
     INVALID,
-    PASSIVE,
-    FIXEDSTAND,
+    PASSIVE,    // 被动阻尼状态
+    FIXEDSTAND, // 固定站立状态
     FIXEDDOWN,
     LOCO,
     WBC,
@@ -64,4 +70,4 @@ enum class FSMStateName{
     AMP,
 };
 
-#endif  // ENUMCLASS_H
+#endif // ENUMCLASS_H

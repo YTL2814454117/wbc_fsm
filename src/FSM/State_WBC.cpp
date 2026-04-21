@@ -7,17 +7,21 @@
 
 using json = nlohmann::json;
 
+// 基于模仿学习的wbc实现
 State_WBC::State_WBC(CtrlComponents *ctrlComp)
-    : FSMState(ctrlComp, FSMStateName::WBC, "wbc"){
+    : FSMState(ctrlComp, FSMStateName::WBC, "wbc")
+{
 
     std::string config_path = std::string(PROJECT_ROOT_DIR) + "/config/wbc.json";
     std::ifstream config_file(config_path);
-    if (!config_file.is_open()) {
+    if (!config_file.is_open())
+    {
         std::cerr << "[ERROR] Failed to open config file: " << config_path << std::endl;
         throw std::runtime_error("Cannot open config file");
     }
-    
-    try {
+
+    try
+    {
         json config = json::parse(config_file);
         std::string base_path = std::string(PROJECT_ROOT_DIR) + "/";
         _model_path = base_path + config["model_path"].get<std::string>();
@@ -28,13 +32,15 @@ State_WBC::State_WBC(CtrlComponents *ctrlComp)
         _end_refer_idx = config["end_idx"].get<int>();
         std::cout << "[Config] Model path: " << _model_path << std::endl;
         std::cout << "[Config] Folder path: " << _folder_path << std::endl;
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception &e)
+    {
         std::cerr << "[ERROR] Failed to parse config file: " << e.what() << std::endl;
         throw;
     }
     config_file.close();
 
-
+    // 加载二进制运动数据
     _bin_data_loaded = BinaryArrayReader::readBinFilesFromFolder(
         _folder_path,
         _body_ang_vel_w, _body_ang_vel_w_shape,
@@ -43,14 +49,15 @@ State_WBC::State_WBC(CtrlComponents *ctrlComp)
         _body_quat_w, _body_quat_w_shape,
         _fps, _fps_shape,
         _joint_pos, _joint_pos_shape,
-        _joint_vel, _joint_vel_shape
-    );
+        _joint_vel, _joint_vel_shape);
     _motion_frame_count = _joint_pos_shape[0];
-    if (_bin_data_loaded) {
+    if (_bin_data_loaded)
+    {
         std::cout << "[SUCCESS] Loaded motion data from: " << _folder_path << std::endl;
         std::cout << "Total motion frames: " << _motion_frame_count << std::endl;
-        
-    } else {
+    }
+    else
+    {
         std::cerr << "[ERROR] Failed to load some binary data!" << std::endl;
     }
     _loadPolicy();
@@ -61,44 +68,43 @@ void State_WBC::_init_buffers()
     _last_refer_idx = 0;
     for (int i = 0; i < this->_actor_state_history_length; ++i)
     {
-        _observations_compute(); 
+        _observations_compute();
     }
 }
 
-void State_WBC::_loadPolicy() 
+void State_WBC::_loadPolicy()
 {
     auto available_providers = Ort::GetAvailableProviders();
-    _session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
-    _session = std::make_unique<Ort::Session>(_env, _model_path.c_str(), _session_options);
+    _session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);     // 开启最高级别的图优化
+    _session = std::make_unique<Ort::Session>(_env, _model_path.c_str(), _session_options); // 加载ONNX模型
 
     Ort::TypeInfo input_type = _session->GetInputTypeInfo(0);
-    auto input_shapes = input_type.GetTensorTypeAndShapeInfo().GetShape();
+    auto input_shapes = input_type.GetTensorTypeAndShapeInfo().GetShape(); // 获取输入张量的形状信息
     Ort::TypeInfo output_type = _session->GetOutputTypeInfo(0);
-    auto output_shapes = output_type.GetTensorTypeAndShapeInfo().GetShape();
+    auto output_shapes = output_type.GetTensorTypeAndShapeInfo().GetShape(); // 获取输出张量的形状信息
 
     _obs_size_ = input_shapes[1];
     _action_size_ = output_shapes[1];
     _action = std::vector<float>(_action_size_, 0.0f);
-
 }
 
 void State_WBC::_observations_compute()
-{   
-    std::vector<float> base_quat = std::vector<float>(4, 0.0f); 
+{
+    std::vector<float> base_quat = std::vector<float>(4, 0.0f);
     base_quat = {
         _lowState->imu.quaternion[0],  // w
         _lowState->imu.quaternion[1],  // x
         _lowState->imu.quaternion[2],  // y
         _lowState->imu.quaternion[3]}; // z
-    std::vector<float> projected_gravity(3);  
+    std::vector<float> projected_gravity(3);
     projected_gravity = QuatRotateInverse(base_quat, this->_gravity_vec);
     auto obs_projected_gravity = projected_gravity;
     std::vector<float> waist_yrp(3);
-    for(int i=0; i<3; i++)
+    for (int i = 0; i < 3; i++)
     {
         waist_yrp[i] = _lowState->motorState[_waist_yrp_idx[i]].q;
     }
-    
+
     Eigen::Matrix3f R_b2w = rotz(waist_yrp[0]) * rotx(waist_yrp[1]) * roty(waist_yrp[2]);
     Eigen::Matrix3f R_base = matrix_from_quat(base_quat);
     Eigen::Matrix3f R_waist = R_base * R_b2w;
@@ -106,29 +112,29 @@ void State_WBC::_observations_compute()
 
     std::vector<float> dof_pos_vec;
     dof_pos_vec.reserve(NUM_DOF);
-    for (int i = 0; i < NUM_DOF; ++i) {
+    for (int i = 0; i < NUM_DOF; ++i)
+    {
         dof_pos_vec.push_back(_lowState->motorState[dof_mapping[i]].q - this->_default_dof_pos[dof_mapping[i]]);
     }
- 
+
     std::vector<float> dof_vel_vec;
     dof_vel_vec.reserve(NUM_DOF);
-    for (int i = 0; i < NUM_DOF; ++i) {
+    for (int i = 0; i < NUM_DOF; ++i)
+    {
         dof_vel_vec.push_back(_lowState->motorState[dof_mapping[i]].dq);
     }
 
-    auto body_ang_vel = std::vector<float>({
-        static_cast<float>(_lowState->imu.gyroscope[0]),
-        static_cast<float>(_lowState->imu.gyroscope[1]),
-        static_cast<float>(_lowState->imu.gyroscope[2])
-    });
+    auto body_ang_vel = std::vector<float>({static_cast<float>(_lowState->imu.gyroscope[0]),
+                                            static_cast<float>(_lowState->imu.gyroscope[1]),
+                                            static_cast<float>(_lowState->imu.gyroscope[2])});
 
-    body_ang_vel[0] = body_ang_vel[0] * scale_lin_vel; 
-    body_ang_vel[1] = body_ang_vel[1] * scale_lin_vel;  
-    body_ang_vel[2] = body_ang_vel[2] * scale_ang_vel;  
-    for(int i=0; i<NUM_DOF; i++)
+    body_ang_vel[0] = body_ang_vel[0] * scale_lin_vel;
+    body_ang_vel[1] = body_ang_vel[1] * scale_lin_vel;
+    body_ang_vel[2] = body_ang_vel[2] * scale_ang_vel;
+    for (int i = 0; i < NUM_DOF; i++)
     {
-        dof_pos_vec[i] = dof_pos_vec[i] * scale_dof_pos;  
-        dof_vel_vec[i] = dof_vel_vec[i] * scale_dof_vel;  
+        dof_pos_vec[i] = dof_pos_vec[i] * scale_dof_pos;
+        dof_vel_vec[i] = dof_vel_vec[i] * scale_dof_vel;
     }
     std::vector<float> current_robot_state;
     current_robot_state.reserve(3 + 3 + dof_pos_vec.size() + dof_vel_vec.size() + _action.size());
@@ -137,9 +143,9 @@ void State_WBC::_observations_compute()
     current_robot_state.insert(current_robot_state.end(), dof_pos_vec.begin(), dof_pos_vec.end());
     current_robot_state.insert(current_robot_state.end(), dof_vel_vec.begin(), dof_vel_vec.end());
     current_robot_state.insert(current_robot_state.end(), _action.begin(), _action.end());
-    
+
     _robot_state_obs_buf.erase(_robot_state_obs_buf.begin(),
-                                _robot_state_obs_buf.begin() + _robot_state_dim);
+                               _robot_state_obs_buf.begin() + _robot_state_dim);
     _robot_state_obs_buf.insert(_robot_state_obs_buf.end(),
                                 current_robot_state.begin(),
                                 current_robot_state.end());
@@ -192,17 +198,17 @@ void State_WBC::_observations_compute()
     std::vector<float> last_refer_anchor_pos;
     std::vector<float> last_refer_anchor_quat;
 
-    std::vector<float> tgt_anchor_ori_b_flat;              
-    std::vector<float> tgt_anchor_pos_b_flat; 
-    std::vector<float> tgt_dof_pos_flat; 
-    std::vector<float> tgt_dof_vel_flat; 
+    std::vector<float> tgt_anchor_ori_b_flat;
+    std::vector<float> tgt_anchor_pos_b_flat;
+    std::vector<float> tgt_dof_pos_flat;
+    std::vector<float> tgt_dof_vel_flat;
 
     for (int i = 0; i < _mimic_obs_predictive_horizon; i++)
     {
-        
+
         int idx = _refer_idx + i * _frame_interval;
         int last_idx = idx - _frame_interval;
-        if(_pause_flag)
+        if (_pause_flag)
         {
             idx = _refer_idx;
             last_idx = _refer_idx;
@@ -218,7 +224,7 @@ void State_WBC::_observations_compute()
 
         cur_refer_anchor_pos = get_pos(idx, _anchor_idx);
         cur_refer_dof_pos = get_dof_pos(idx);
-        if(_pause_flag)
+        if (_pause_flag)
         {
             cur_refer_dof_vel = std::vector<float>(NUM_DOF, 0.0f);
         }
@@ -226,7 +232,7 @@ void State_WBC::_observations_compute()
         {
             cur_refer_dof_vel = get_dof_vel(idx);
         }
-        
+
         cur_refer_anchor_quat = get_quat(idx, _anchor_idx);
         ref_yaw_quat = yaw_quat(cur_refer_anchor_quat);
         ref_yaw_quat_conj = quat_conjugate(ref_yaw_quat);
@@ -242,10 +248,8 @@ void State_WBC::_observations_compute()
             last_refer_anchor_pos,
             last_refer_anchor_quat,
             &cur_refer_anchor_pos,
-            &cur_refer_anchor_quat
-        );
+            &cur_refer_anchor_quat);
 
-        
         Eigen::Matrix3f mat = matrix_from_quat(cur_target_quat);
         std::vector<float> tgt_anchor_ori_b(6);
         tgt_anchor_ori_b[0] = mat(0, 0);
@@ -282,12 +286,11 @@ void State_WBC::_observations_compute()
         _robot_state_obs_buf.size() + mimic_obs.size());
     this->_observation.insert(this->_observation.end(), mimic_obs.begin(), mimic_obs.end());
     this->_observation.insert(this->_observation.end(), _robot_state_obs_buf.begin(), _robot_state_obs_buf.end());
-    
-    for(int i = 0; i < this->_observation.size(); i++)
+
+    for (int i = 0; i < this->_observation.size(); i++)
     {
         this->_observation[i] = std::max(-clip_observations, std::min(this->_observation[i], clip_observations));
     }
-
 }
 
 void State_WBC::_action_compute()
@@ -298,9 +301,7 @@ void State_WBC::_action_compute()
 
         std::vector<Ort::Value> input_tensors;
         std::vector<int64_t> obs_shape = {1,
-            _robot_state_dim * _actor_state_history_length 
-            + _reference_dim * _mimic_obs_predictive_horizon
-        }; 
+                                          _robot_state_dim * _actor_state_history_length + _reference_dim * _mimic_obs_predictive_horizon};
 
         input_tensors.push_back(Ort::Value::CreateTensor<float>(
             memory_info,
@@ -315,8 +316,7 @@ void State_WBC::_action_compute()
             input_tensors.data(),
             input_tensors.size(),
             _output_names.data(),
-            1
-        );
+            1);
 
         float *actions = output_tensors[0].GetTensorMutableData<float>();
         std::memcpy(_action.data(), actions, _action.size() * sizeof(float));
@@ -347,10 +347,10 @@ void State_WBC::enter()
 {
     _pause_flag = false;
     _terminate_flag = false;
-    _pause_curr_flag = false;
+    _pause_curr_flag = false; // 清除历史标记
     _refer_idx = _start_refer_idx;
-    _last_refer_idx = _refer_idx;
-    if(_pause_refer_idx<0)
+    _last_refer_idx = _refer_idx; // 设置动作帧数的索引
+    if (_pause_refer_idx < 0)
     {
         _pause_refer_idx = 0;
     }
@@ -361,16 +361,17 @@ void State_WBC::enter()
             std::cout << "[WARNING]: end_idx is smaller than start_idx, defaulting to the length of the motion." << std::endl;
         }
         _end_refer_idx = _motion_frame_count - 1;
-    } 
+    }
+    // 对当前状态进行软锁定
     for (int i = 0; i < NUM_DOF; i++)
     {
-        _lowCmd->motorCmd[i].mode = 10;
-        _lowCmd->motorCmd[i].q = _lowState->motorState[i].q;  
-        _lowCmd->motorCmd[i].dq = 0;
-        _lowCmd->motorCmd[i].tau = 0;
+        _lowCmd->motorCmd[i].mode = 10;                      // 进入 PD 位置控制模式
+        _lowCmd->motorCmd[i].q = _lowState->motorState[i].q; // 将当前关节位置作为初始目标位置
+        _lowCmd->motorCmd[i].dq = 0;                         // 速度目标设为0
+        _lowCmd->motorCmd[i].tau = 0;                        // 力矩目标设为0
         _lowCmd->motorCmd[i].Kp = this->dof_Kps[i];
         _lowCmd->motorCmd[i].Kd = this->dof_Kds[i];
-        this->_targetPos_rl[i] = this->_default_dof_pos[i];  
+        this->_targetPos_rl[i] = this->_default_dof_pos[i];
         this->_last_targetPos_rl[i] = _lowState->motorState[i].q;
         this->_joint_q[i] = this->_default_dof_pos[i];
     }
@@ -379,10 +380,12 @@ void State_WBC::enter()
 
 void State_WBC::run()
 {
-    if(!_pause_flag){
+    if (!_pause_flag)
+    {
         _refer_idx++;
     }
-    else{
+    else
+    {
         if (!_pause_curr_flag)
             _refer_idx = _pause_refer_idx;
     }
@@ -390,11 +393,11 @@ void State_WBC::run()
     {
         _refer_idx = _end_refer_idx;
     }
-    _observations_compute(); 
-    _action_compute(); 
+    _observations_compute();
+    _action_compute();
     memcpy(this->_targetPos_rl, this->_joint_q, sizeof(this->_joint_q));
-   
-    for (int j = 0; j < NUM_DOF; j++) 
+
+    for (int j = 0; j < NUM_DOF; j++)
     {
         _lowCmd->motorCmd[j].mode = 10;
         _lowCmd->motorCmd[j].q = _targetPos_rl[j];
@@ -424,13 +427,15 @@ FSMStateName State_WBC::checkChange()
     {
         return FSMStateName::PASSIVE;
     }
-    else if(_lowState->userCmd == UserCommand::R2_A){ 
+    else if (_lowState->userCmd == UserCommand::R2_A)
+    {
         return FSMStateName::AMP;
     }
     else if (_lowState->userCmd == UserCommand::R2 && !_pause_flag)
-    { 
+    {
         _pause_flag = true;
-        std::cout << std::endl <<"WBC Pause" <<std::endl;
+        std::cout << std::endl
+                  << "WBC Pause" << std::endl;
         return FSMStateName::WBC;
     }
     else if (_lowState->userCmd == UserCommand::L2 && !_pause_flag)
@@ -442,17 +447,20 @@ FSMStateName State_WBC::checkChange()
         return FSMStateName::WBC;
     }
     else if (_lowState->userCmd == UserCommand::R1 && _pause_flag)
-    { 
+    {
         _pause_flag = false;
         _pause_curr_flag = false;
-        std::cout << std::endl << "WBC Resume" << std::endl;
+        std::cout << std::endl
+                  << "WBC Resume" << std::endl;
         return FSMStateName::WBC;
     }
-    else if(_lowState->userCmd == UserCommand::SELECT){
+    else if (_lowState->userCmd == UserCommand::SELECT)
+    {
         throw std::runtime_error("exit..");
         return FSMStateName::PASSIVE;
     }
-    else{ 
+    else
+    {
         return FSMStateName::WBC;
     }
 }

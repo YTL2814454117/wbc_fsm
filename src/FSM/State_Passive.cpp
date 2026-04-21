@@ -5,7 +5,8 @@
 using json = nlohmann::json;
 
 State_Passive::State_Passive(CtrlComponents *ctrlComp)
-             :FSMState(ctrlComp, FSMStateName::PASSIVE, "passive"){
+    : FSMState(ctrlComp, FSMStateName::PASSIVE, "passive")
+{
 
     std::string config_path = std::string(PROJECT_ROOT_DIR) + "/config/passive.json";
     std::ifstream config_file(config_path);
@@ -28,33 +29,40 @@ State_Passive::State_Passive(CtrlComponents *ctrlComp)
     config_file.close();
 }
 
-void State_Passive::enter(){
-    for(int i=0; i<NUM_DOF; i++){
+void State_Passive::enter()
+{
+    for (int i = 0; i < NUM_DOF; i++)
+    {
         _lowCmd->motorCmd[i].q = 0;
         _lowCmd->motorCmd[i].dq = 0;
         _lowCmd->motorCmd[i].Kp = 0;
         _lowCmd->motorCmd[i].Kd = _Kds;
         _lowCmd->motorCmd[i].tau = 0;
     }
-    
 }
 
-void State_Passive::run(){
+void State_Passive::run()
+{
 }
 
-void State_Passive::exit(){
-
+void State_Passive::exit()
+{
 }
 
-FSMStateName State_Passive::checkChange(){
-    if(_lowState->userCmd == UserCommand::START){
+// 检查状态切换条件，返回下一个状态的名称
+FSMStateName State_Passive::checkChange()
+{
+    if (_lowState->userCmd == UserCommand::START)
+    {
         return FSMStateName::FIXEDSTAND;
     }
-    else if(_lowState->userCmd == UserCommand::SELECT){
+    else if (_lowState->userCmd == UserCommand::SELECT)
+    {
         throw std::runtime_error("exit..");
         return FSMStateName::PASSIVE;
     }
-    else{
+    else
+    {
         return FSMStateName::PASSIVE;
     }
 }

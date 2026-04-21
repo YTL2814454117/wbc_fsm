@@ -58,7 +58,7 @@ void FSM::run()
             _currentState->run(); // 进入下一个状态后，立即执行一次控制逻辑，确保状态切换的响应性
         }
 
-        absoluteWait(_startTime, (long long)(_ctrlComp->dt * 1000000)); // 等待控制周期结束，确保每个控制周期的时间一致
+        absoluteWait(_startTime, (long long)(_ctrlComp->dt * 1000000)); // 等待控制周期结束，确保每个控制周期的时间一致，确保控制频率为50Hz
     }
     catch (const std::exception &e) // 捕获运行过程中可能出现的异常，防止程序崩溃，并输出错误信息
     {
