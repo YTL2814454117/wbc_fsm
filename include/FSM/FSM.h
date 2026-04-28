@@ -7,34 +7,40 @@
 #include "FSM/State_Loco.h"
 #include "FSM/State_Amp.h"
 #include "FSM/State_WBC.h"
+#include "FSM/State_WBC_New.h"
 #include "common/enumClass.h"
 #include "control/CtrlComponents.h"
 
-struct FSMStateList{
+struct FSMStateList
+{
     FSMState *invalid;
     State_Passive *passive;
     State_FixedStand *fixedStand;
     State_Loco *loco;
-    State_WBC *wbc;
+    State_WBC_New *wbc;
+    // State_WBC *wbc;
     State_AMP *amp;
-    void deletePtr(){
+    void deletePtr()
+    {
         delete invalid;
         delete passive;
         delete fixedStand;
         delete loco;
         delete wbc;
-        delete amp; 
+        delete amp;
     }
 };
 
-class FSM{
+class FSM
+{
 public:
     FSM(CtrlComponents *ctrlComp);
     ~FSM();
     void initialize();
     void run();
+
 private:
-    FSMState* getNextState(FSMStateName stateName);
+    FSMState *getNextState(FSMStateName stateName);
     CtrlComponents *_ctrlComp;
     FSMState *_currentState;
     FSMState *_nextState;
@@ -45,5 +51,4 @@ private:
     int count;
 };
 
-
-#endif  // FSM_H
+#endif // FSM_H

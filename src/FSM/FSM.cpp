@@ -9,7 +9,8 @@ FSM::FSM(CtrlComponents *ctrlComp)
     _stateList.fixedStand = new State_FixedStand(_ctrlComp);
     _stateList.loco = new State_Loco(_ctrlComp);
     _stateList.amp = new State_AMP(_ctrlComp);
-    _stateList.wbc = new State_WBC(_ctrlComp);
+    // _stateList.wbc = new State_WBC(_ctrlComp);
+    _stateList.wbc = new State_WBC_New(_ctrlComp);
     initialize();
 }
 

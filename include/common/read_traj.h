@@ -97,6 +97,7 @@ public:
                   << std::endl;
     }
 
+    // 引用传参，读取文件夹中的所有.bin文件，并根据文件名将数据存储到对应的成员变量中
     static bool readBinFilesFromFolder(
         const std::string &folder_name,
         std::vector<float> &body_ang_vel_w, std::vector<uint32_t> &body_ang_vel_w_shape,
@@ -137,13 +138,12 @@ public:
         }
         std::sort(bin_files.begin(), bin_files.end());
         bool all_success = true;
-        
+
         for (const auto &filepath : bin_files)
-        { 
+        {
             size_t last_slash = filepath.find_last_of('/');
             std::string filename = (last_slash != std::string::npos) ? filepath.substr(last_slash + 1) : filepath;
             std::string name = filename.substr(0, filename.find_last_of('.'));
-
 
             bool success = false;
 
@@ -186,7 +186,7 @@ public:
                 all_success = false;
             }
         }
-                  
+
         return all_success;
     }
 };

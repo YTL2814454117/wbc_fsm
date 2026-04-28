@@ -47,7 +47,7 @@ def save_unitree_bin(filename, array_data):
 # ==========================================
 
 # 设置你的 npy 所在的绝对路径
-base_dir = "/home/simon/Code/unitree_g1/wbc_fsm/motion_data/lafan1/gangnam_style/"
+base_dir = "/home/simon/Code/unitree_g1/wbc_fsm/motion_data/lafan1/tiktok_video/"
 output_dir = os.path.join(base_dir, "converted_bin")
 
 # 创建输出文件夹

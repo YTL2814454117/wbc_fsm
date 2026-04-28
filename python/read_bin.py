@@ -2,7 +2,9 @@ import numpy as np
 import os
 
 # 直接写死电脑上的绝对路径，注意最后要加斜杠 /
-base_dir = "/home/simon/Code/unitree_g1/wbc_fsm/motion_data/lafan1/dance12/"
+# base_dir = "/home/simon/Code/unitree_g1/wbc_fsm/motion_data/lafan1/gangnam_style/converted_bin/"
+# base_dir = "/home/simon/Code/unitree_g1/wbc_fsm/motion_data/lafan1/dance12/"
+base_dir = "/home/simon/Code/unitree_g1/wbc_fsm/motion_data/lafan1/tiktok_video/converted_bin/"
 
 bin_files = [
     base_dir + "fps.bin",

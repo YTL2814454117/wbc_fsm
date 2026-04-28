@@ -101,10 +101,10 @@ private:
     bool _wbc_pause = false;
     float _motion_len;
     std::vector<float> _target_dof_pos;
-    const int _mimic_obs_predictive_horizon = 1;
+    const int _mimic_obs_predictive_horizon = 1; // 预测的视野是1帧
     const int _frame_interval = 5;
-    const int _actor_state_history_length = 4;
-    const int _robot_state_dim = 93;
+    const int _actor_state_history_length = 4; // 状态历史长度
+    const int _robot_state_dim = 93;           // 机器人状态的维度，包含身体角速度（3）、投影重力（3）、关节位置（29）、关节速度（29）以及上一步动作（29）
     const int _reference_dim = 67;
     unsigned int _refer_idx = 0;
     unsigned int _last_refer_idx = 0;
@@ -115,7 +115,7 @@ private:
     int _pause_refer_idx = 350; // reference frame index when paused
     int _end_refer_idx = -1;    // reference frame index to end WBC state
     int _motion_frame_count = 0;
-    const std::vector<float> _gravity_vec = {0.0f, 0.0f, -1.0f};
+    const std::vector<float> _gravity_vec = {0.0f, 0.0f, -1.0f}; // gravity vector in world frame
     float _anchor_terminate_thresh = 0.5f;
     bool _terminate_flag = false;
     bool _pause_curr_flag = false;
