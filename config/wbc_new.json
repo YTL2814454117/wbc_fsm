@@ -4,5 +4,7 @@
     "start_idx": 0,
     "end_idx": -1,
     "pause_idx": 350,
-    "safe_projgravity_threshold": 0.6
+    "safe_projgravity_threshold": 0.6,
+    "debug": true,
+    "debug_interval": 50
 }

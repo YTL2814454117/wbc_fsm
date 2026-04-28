@@ -26,6 +26,10 @@ State_WBC_New::State_WBC_New(CtrlComponents *ctrlComp)
         _start_refer_idx = config["start_idx"].get<int>();
         _pause_refer_idx = config["pause_idx"].get<int>();
         _end_refer_idx = config["end_idx"].get<int>();
+        if (config.contains("debug"))
+            _debug_enabled = config["debug"].get<bool>();
+        if (config.contains("debug_interval"))
+            _debug_interval = std::max(1, config["debug_interval"].get<int>());
     }
     catch (const std::exception &e)
     {
@@ -33,7 +37,7 @@ State_WBC_New::State_WBC_New(CtrlComponents *ctrlComp)
     }
     config_file.close();
 
-    // 初始化 PD 参数 (根据 config 中的 stiffness 和 damping 映射到电机 ID)
+    // Official deploy writes stiffness/damping directly by physical motor id.
     double config_stiffness[NUM_DOF] = {
         40.2, 99.1, 40.2, 99.1, 28.5, 28.5, 40.2, 99.1, 40.2, 99.1, 28.5, 28.5,
         40.2, 28.5, 28.5, 14.3, 14.3, 14.3, 14.3, 14.3, 16.8, 16.8, 14.3, 14.3, 14.3, 14.3,
@@ -45,9 +49,8 @@ State_WBC_New::State_WBC_New(CtrlComponents *ctrlComp)
 
     for (int i = 0; i < NUM_DOF; ++i)
     {
-        int motor_id = dof_mapping[i];
-        dof_Kps[motor_id] = config_stiffness[i];
-        dof_Kds[motor_id] = config_damping[i];
+        dof_Kps[i] = config_stiffness[i];
+        dof_Kds[i] = config_damping[i];
     }
 
     // 加载动作捕捉二进制文件
@@ -74,6 +77,13 @@ State_WBC_New::State_WBC_New(CtrlComponents *ctrlComp)
 
     _motion_frame_count = _joint_pos_shape[0];
     _loadPolicy();
+    std::cout << "[State_WBC_New] model=" << _model_path
+              << " motion=" << _folder_path
+              << " frames=" << _motion_frame_count
+              << " obs=" << _obs_size_
+              << " action=" << _action_size_
+              << " debug=" << (_debug_enabled ? "on" : "off")
+              << std::endl;
 }
 
 void State_WBC_New::_init_buffers()
@@ -160,6 +170,13 @@ void State_WBC_New::_observations_compute()
         dof_pos_rel[i] = (_lowState->motorState[motor_id].q - _default_dof_pos[i]) * scale_dof_pos;
         dof_vel_rel[i] = _lowState->motorState[motor_id].dq * scale_dof_vel;
     }
+    _debug_dof_pos_rel_max_abs = 0.0f;
+    _debug_dof_vel_max_abs = 0.0f;
+    for (int i = 0; i < NUM_DOF; ++i)
+    {
+        _debug_dof_pos_rel_max_abs = std::max(_debug_dof_pos_rel_max_abs, std::abs(dof_pos_rel[i]));
+        _debug_dof_vel_max_abs = std::max(_debug_dof_vel_max_abs, std::abs(dof_vel_rel[i]));
+    }
 
     // 参考轨迹处理
     int idx = std::clamp((_pause_flag ? (int)_pause_refer_idx : (int)_refer_idx), 1, (int)_motion_frame_count - 1);
@@ -181,6 +198,12 @@ void State_WBC_New::_observations_compute()
 
     std::vector<float> ref_dof_pos = get_dof_pos(idx);
     std::vector<float> ref_dof_vel = (_pause_flag) ? std::vector<float>(NUM_DOF, 0.0f) : get_dof_vel(idx);
+    _debug_ref_waist_policy[0] = ref_dof_pos[_waist_yaw_policy_idx];
+    _debug_ref_waist_policy[1] = ref_dof_pos[_waist_roll_policy_idx];
+    _debug_ref_waist_policy[2] = ref_dof_pos[_waist_pitch_policy_idx];
+    _debug_ref_waist_sdk_guess[0] = ref_dof_pos[12];
+    _debug_ref_waist_sdk_guess[1] = ref_dof_pos[13];
+    _debug_ref_waist_sdk_guess[2] = ref_dof_pos[14];
 
     // 6D 姿态处理
     std::vector<float> ref_anchor_quat = _reference_torso_quat(idx);
@@ -192,7 +215,8 @@ void State_WBC_New::_observations_compute()
     // 安全逻辑 (重力投影)
     std::vector<float> proj_grav = QuatRotateInverse(robot_torso_quat, _gravity_vec);
     std::vector<float> motion_proj_grav = quat_apply_inverse(aligned_ref_anchor_quat, _gravity_vec);
-    if (std::abs(motion_proj_grav[2] - proj_grav[2]) > _anchor_terminate_thresh)
+    _debug_proj_grav_err = std::abs(motion_proj_grav[2] - proj_grav[2]);
+    if (_debug_proj_grav_err > _anchor_terminate_thresh)
         _terminate_flag = true;
 
     // 拼装 154 维观测
@@ -205,8 +229,12 @@ void State_WBC_New::_observations_compute()
     _observation.insert(_observation.end(), dof_pos_rel.begin(), dof_pos_rel.end());             // 29
     _observation.insert(_observation.end(), dof_vel_rel.begin(), dof_vel_rel.end());             // 29
     _observation.insert(_observation.end(), _action.begin(), _action.end());                     // 29
+    _debug_obs_max_abs = 0.0f;
     for (auto &v : _observation)
+    {
         v = std::clamp(v, -clip_observations, clip_observations);
+        _debug_obs_max_abs = std::max(_debug_obs_max_abs, std::abs(v));
+    }
 }
 
 void State_WBC_New::_action_compute()
@@ -219,6 +247,14 @@ void State_WBC_New::_action_compute()
         auto outputs = _session->Run(Ort::RunOptions{nullptr}, _input_names.data(), &input, 1, _output_names.data(), 1);
         float *raw = outputs[0].GetTensorMutableData<float>();
         std::memcpy(_action.data(), raw, NUM_DOF * sizeof(float));
+        _debug_action_max_abs = 0.0f;
+        _debug_action_mean_abs = 0.0f;
+        for (float a : _action)
+        {
+            _debug_action_max_abs = std::max(_debug_action_max_abs, std::abs(a));
+            _debug_action_mean_abs += std::abs(a);
+        }
+        _debug_action_mean_abs /= static_cast<float>(_action.size());
 
         // ==========================================
         // 重要：还原动作到物理电机位置
@@ -270,6 +306,11 @@ void State_WBC_New::run()
         _refer_idx = _end_refer_idx;
     _observations_compute();
     _action_compute();
+    _debug_target_delta_max = 0.0f;
+    for (int j = 0; j < NUM_DOF; j++)
+    {
+        _debug_target_delta_max = std::max(_debug_target_delta_max, std::abs(_joint_q[j] - _last_targetPos_rl[j]));
+    }
     for (int j = 0; j < NUM_DOF; j++)
     {
         _lowCmd->motorCmd[j].mode = 10; // ⚠️
@@ -278,6 +319,42 @@ void State_WBC_New::run()
         _lowCmd->motorCmd[j].tau = 0;
         _lowCmd->motorCmd[j].Kp = dof_Kps[j];
         _lowCmd->motorCmd[j].Kd = dof_Kds[j];
+        _last_targetPos_rl[j] = _joint_q[j];
+    }
+    _debug_print();
+}
+
+void State_WBC_New::_debug_print()
+{
+    if (!_debug_enabled)
+        return;
+
+    ++_debug_counter;
+    if (_debug_counter % static_cast<unsigned int>(_debug_interval) != 0)
+        return;
+
+    std::cout << "\n[WBC_NEW_DEBUG]"
+              << " idx=" << _refer_idx << "/" << _end_refer_idx
+              << " obs_max=" << _debug_obs_max_abs
+              << " act_max=" << _debug_action_max_abs
+              << " act_mean=" << _debug_action_mean_abs
+              << " tgt_step_max=" << _debug_target_delta_max
+              << " dof_pos_rel_max=" << _debug_dof_pos_rel_max_abs
+              << " dof_vel_max=" << _debug_dof_vel_max_abs
+              << " grav_err=" << _debug_proj_grav_err
+              << " waist_policy=[" << _debug_ref_waist_policy[0] << ", "
+              << _debug_ref_waist_policy[1] << ", " << _debug_ref_waist_policy[2] << "]"
+              << " waist_idx12_14=[" << _debug_ref_waist_sdk_guess[0] << ", "
+              << _debug_ref_waist_sdk_guess[1] << ", " << _debug_ref_waist_sdk_guess[2] << "]"
+              << " q0/6/12=[" << _joint_q[0] << ", " << _joint_q[6] << ", " << _joint_q[12] << "]"
+              << " kp0/6/12=[" << dof_Kps[0] << ", " << dof_Kps[6] << ", " << dof_Kps[12] << "]"
+              << std::endl;
+
+    if (_debug_action_max_abs > 20.0f || _debug_target_delta_max > 1.0f || _debug_dof_vel_max_abs > 40.0f)
+    {
+        std::cout << "[WBC_NEW_DEBUG_WARN]"
+                  << " large value detected. Check action explosion, joint order, or unstable PD/contact state."
+                  << std::endl;
     }
 }
 

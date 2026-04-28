@@ -46,6 +46,7 @@ private:
     void _loadPolicy();
     void _observations_compute();
     void _action_compute();
+    void _debug_print();
     std::vector<float> _current_torso_quat() const;
     std::vector<float> _reference_root_quat(int frame_idx) const;
     std::vector<float> _reference_torso_quat(int frame_idx) const;
@@ -101,6 +102,18 @@ private:
     float _anchor_terminate_thresh = 0.5f;
     bool _terminate_flag = false;
     bool _pause_curr_flag = false;
+    bool _debug_enabled = true;
+    int _debug_interval = 50;
+    unsigned int _debug_counter = 0;
+    float _debug_obs_max_abs = 0.0f;
+    float _debug_action_max_abs = 0.0f;
+    float _debug_action_mean_abs = 0.0f;
+    float _debug_target_delta_max = 0.0f;
+    float _debug_dof_pos_rel_max_abs = 0.0f;
+    float _debug_dof_vel_max_abs = 0.0f;
+    float _debug_proj_grav_err = 0.0f;
+    float _debug_ref_waist_policy[3] = {0.0f, 0.0f, 0.0f};
+    float _debug_ref_waist_sdk_guess[3] = {0.0f, 0.0f, 0.0f};
 
     // --- 以下参数严格对应你提供的配置文件 ---
 
