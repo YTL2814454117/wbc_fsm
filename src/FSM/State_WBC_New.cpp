@@ -66,6 +66,12 @@ State_WBC_New::State_WBC_New(CtrlComponents *ctrlComp)
         _joint_pos, _joint_pos_shape,
         _joint_vel, _joint_vel_shape);
 
+    if (!_bin_data_loaded || _joint_pos_shape.size() != 2 || _joint_vel_shape.size() != 2 ||
+        _body_quat_w_shape.size() != 3 || _joint_pos_shape[1] != NUM_DOF || _joint_vel_shape[1] != NUM_DOF)
+    {
+        throw std::runtime_error("Invalid mimic motion bin data shape");
+    }
+
     _motion_frame_count = _joint_pos_shape[0];
     _loadPolicy();
 }
@@ -81,13 +87,61 @@ void State_WBC_New::_loadPolicy()
     _session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
     _session = std::make_unique<Ort::Session>(_env, _model_path.c_str(), _session_options);
     auto input_shapes = _session->GetInputTypeInfo(0).GetTensorTypeAndShapeInfo().GetShape();
-    _obs_size_ = input_shapes[1]; // 154
-    _action = std::vector<float>(NUM_DOF, 0.0f);
+    auto output_shapes = _session->GetOutputTypeInfo(0).GetTensorTypeAndShapeInfo().GetShape();
+    _obs_size_ = input_shapes.size() > 1 && input_shapes[1] > 0 ? input_shapes[1] : _obs_dim;
+    _action_size_ = output_shapes.size() > 1 && output_shapes[1] > 0 ? output_shapes[1] : _policy_action_dim;
+    if (_obs_size_ != _obs_dim || _action_size_ != _policy_action_dim)
+    {
+        throw std::runtime_error("ONNX policy shape mismatch for State_WBC_New");
+    }
+    _action = std::vector<float>(_action_size_, 0.0f);
+}
+
+std::vector<float> State_WBC_New::_current_torso_quat() const
+{
+    std::vector<float> base_quat = {
+        static_cast<float>(_lowState->imu.quaternion[0]),
+        static_cast<float>(_lowState->imu.quaternion[1]),
+        static_cast<float>(_lowState->imu.quaternion[2]),
+        static_cast<float>(_lowState->imu.quaternion[3])};
+
+    Eigen::Matrix3f torso_rot =
+        matrix_from_quat(base_quat) *
+        rotz(static_cast<float>(_lowState->motorState[_waist_yaw_motor_id].q)) *
+        rotx(static_cast<float>(_lowState->motorState[_waist_roll_motor_id].q)) *
+        roty(static_cast<float>(_lowState->motorState[_waist_pitch_motor_id].q));
+
+    return quat_from_matrix(torso_rot);
+}
+
+std::vector<float> State_WBC_New::_reference_root_quat(int frame_idx) const
+{
+    int idx = std::clamp(frame_idx, 0, _motion_frame_count - 1);
+    int num_bodies = static_cast<int>(_body_quat_w_shape[1]);
+    int base = (idx * num_bodies + _root_idx) * 4;
+    return {_body_quat_w[base], _body_quat_w[base + 1], _body_quat_w[base + 2], _body_quat_w[base + 3]};
+}
+
+std::vector<float> State_WBC_New::_reference_torso_quat(int frame_idx) const
+{
+    int idx = std::clamp(frame_idx, 0, _motion_frame_count - 1);
+    int base = idx * NUM_DOF;
+    const float yaw = _joint_pos[base + _waist_yaw_policy_idx];
+    const float roll = _joint_pos[base + _waist_roll_policy_idx];
+    const float pitch = _joint_pos[base + _waist_pitch_policy_idx];
+
+    Eigen::Matrix3f torso_rot =
+        matrix_from_quat(_reference_root_quat(idx)) *
+        rotz(yaw) *
+        rotx(roll) *
+        roty(pitch);
+
+    return quat_from_matrix(torso_rot);
 }
 
 void State_WBC_New::_observations_compute()
 {
-    std::vector<float> base_quat = {_lowState->imu.quaternion[0], _lowState->imu.quaternion[1], _lowState->imu.quaternion[2], _lowState->imu.quaternion[3]};
+    std::vector<float> robot_torso_quat = _current_torso_quat();
 
     // 观测项: 机器人角速度
     std::vector<float> body_ang_vel = {
@@ -129,21 +183,15 @@ void State_WBC_New::_observations_compute()
     std::vector<float> ref_dof_vel = (_pause_flag) ? std::vector<float>(NUM_DOF, 0.0f) : get_dof_vel(idx);
 
     // 6D 姿态处理
-    auto get_quat = [this](int f_idx, int l_idx)
-    {
-        int base = (f_idx * _body_quat_w_shape[1] + l_idx) * 4;
-        return std::vector<float>{_body_quat_w[base], _body_quat_w[base + 1], _body_quat_w[base + 2], _body_quat_w[base + 3]};
-    };
-    std::vector<float> ref_anchor_quat = get_quat(idx, _anchor_idx);
-    std::vector<float> tgt_in_base = quat_multiply(quat_conjugate(base_quat), ref_anchor_quat);
+    std::vector<float> ref_anchor_quat = _reference_torso_quat(idx);
+    std::vector<float> aligned_ref_anchor_quat = quat_multiply(_init_yaw_quat, ref_anchor_quat);
+    std::vector<float> tgt_in_base = quat_multiply(quat_conjugate(robot_torso_quat), aligned_ref_anchor_quat);
     Eigen::Matrix3f mat = matrix_from_quat(tgt_in_base);
     std::vector<float> ref_anchor_ori_6d = {mat(0, 0), mat(0, 1), mat(1, 0), mat(1, 1), mat(2, 0), mat(2, 1)};
 
     // 安全逻辑 (重力投影)
-    std::vector<float> proj_grav = QuatRotateInverse(base_quat, _gravity_vec);
-    std::vector<float> yaw_q_diff = quat_multiply(yaw_quat(base_quat), quat_conjugate(yaw_quat(ref_anchor_quat)));
-    std::vector<float> aligned_ref_q = quat_multiply(yaw_q_diff, ref_anchor_quat);
-    std::vector<float> motion_proj_grav = quat_apply_inverse(aligned_ref_q, _gravity_vec);
+    std::vector<float> proj_grav = QuatRotateInverse(robot_torso_quat, _gravity_vec);
+    std::vector<float> motion_proj_grav = quat_apply_inverse(aligned_ref_anchor_quat, _gravity_vec);
     if (std::abs(motion_proj_grav[2] - proj_grav[2]) > _anchor_terminate_thresh)
         _terminate_flag = true;
 
@@ -178,9 +226,7 @@ void State_WBC_New::_action_compute()
         for (int i = 0; i < NUM_DOF; i++)
         {
 
-            // Zero-Action 零动作测试
-            float act_clamped = 0.0f;
-            // float act_clamped = std::clamp(_action[i], -clip_actions, clip_actions);
+            float act_clamped = std::clamp(_action[i], -clip_actions, clip_actions);
 
             // ⚠️ 关键修正：必须使用网络索引 [i] 读取数组，然后赋值给 dof_mapping 映射出的物理电机！
             _joint_q[dof_mapping[i]] = act_clamped * _action_scale[i] + _default_dof_pos[i];
@@ -203,9 +249,16 @@ void State_WBC_New::enter()
     {
         _lowCmd->motorCmd[i].mode = 10;
         _lowCmd->motorCmd[i].q = _lowState->motorState[i].q;
+        _lowCmd->motorCmd[i].dq = 0;
+        _lowCmd->motorCmd[i].tau = 0;
         _lowCmd->motorCmd[i].Kp = dof_Kps[i];
         _lowCmd->motorCmd[i].Kd = dof_Kds[i];
+        _joint_q[i] = _lowState->motorState[i].q;
+        _targetPos_rl[i] = _lowState->motorState[i].q;
+        _last_targetPos_rl[i] = _lowState->motorState[i].q;
     }
+    std::fill(_action.begin(), _action.end(), 0.0f);
+    _init_yaw_quat = quat_multiply(yaw_quat(_current_torso_quat()), quat_conjugate(yaw_quat(_reference_torso_quat(_refer_idx))));
     _init_buffers();
 }
 

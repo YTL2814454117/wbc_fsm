@@ -46,6 +46,9 @@ private:
     void _loadPolicy();
     void _observations_compute();
     void _action_compute();
+    std::vector<float> _current_torso_quat() const;
+    std::vector<float> _reference_root_quat(int frame_idx) const;
+    std::vector<float> _reference_torso_quat(int frame_idx) const;
 
     const float clip_observations = 100.0;
     const float clip_actions = 100.0;
@@ -78,15 +81,23 @@ private:
     std::string _folder_path;
 
     const int _obs_dim = 154;
+    const int _policy_action_dim = 29;
     unsigned int _refer_idx = 0;
     unsigned int _last_refer_idx = 0;
-    const int _anchor_idx = 0;
+    const int _root_idx = 0;
+    const int _waist_yaw_policy_idx = 2;
+    const int _waist_roll_policy_idx = 5;
+    const int _waist_pitch_policy_idx = 8;
+    const int _waist_yaw_motor_id = 12;
+    const int _waist_roll_motor_id = 13;
+    const int _waist_pitch_motor_id = 14;
     bool _pause_flag = false;
     int _start_refer_idx = 0;
     int _pause_refer_idx = 350;
     int _end_refer_idx = -1;
     int _motion_frame_count = 0;
     const std::vector<float> _gravity_vec = {0.0f, 0.0f, -1.0f};
+    std::vector<float> _init_yaw_quat = {1.0f, 0.0f, 0.0f, 0.0f};
     float _anchor_terminate_thresh = 0.5f;
     bool _terminate_flag = false;
     bool _pause_curr_flag = false;
