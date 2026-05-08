@@ -155,6 +155,9 @@ This project currently uses terminal keyboard input instead of the Unitree wirel
 - **3**: Enter WBC mode (`R1_UP`)
 - **4**: Enter WBC Left state (`R1_LEFT`)
 - **5**: Enter WBC Right state (`R1_RIGHT`)
+- **6**: Select previous dance profile
+- **7**: Select next dance profile
+- **8**: Print current dance profile
 - **p**: Enter Passive damping state (`L2_B`)
 - **[**: Pause motion at the configured reference frame (`R2`)
 - **]**: Resume motion (`R1`)
@@ -178,6 +181,34 @@ This project currently uses terminal keyboard input instead of the Unitree wirel
 5. Press keyboard **3** to enter WBC (Whole-Body Control) Mode
    - Press **[** or **l** to pause the motion
    - Press **]** to resume the motion
+
+### Dance Profile Configuration
+
+WBC dance motions and policies are configured in:
+
+```text
+config/wbc_dances.json
+```
+
+Each dance profile defines its ONNX policy and motion bin directory:
+
+```json
+{
+  "id": "tiktok",
+  "name": "Tiktok Video",
+  "model_path": "model/wbc/tiktok_video.onnx",
+  "motion_path": "motion_data/lafan1/tiktok_video/converted_bin",
+  "start_idx": 0,
+  "end_idx": -1,
+  "pause_idx": 350,
+  "safe_projgravity_threshold": 0.6,
+  "debug": true,
+  "debug_interval": 50,
+  "return_to_amp_blend_frames": 20
+}
+```
+
+Keys **6 / 7 / 8** change or print the dance profile used for the next WBC entry. The controller does not hot-swap ONNX or motion bin data while WBC is running.
 
 ## Project Structure
 

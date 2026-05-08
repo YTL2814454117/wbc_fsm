@@ -175,6 +175,9 @@ controller/
 - **3**：进入 WBC 全身控制模式（`R1_UP`）
 - **4**：进入 WBC Left 状态（`R1_LEFT`）
 - **5**：进入 WBC Right 状态（`R1_RIGHT`）
+- **6**：选择上一个舞蹈动作
+- **7**：选择下一个舞蹈动作
+- **8**：打印当前选中的舞蹈动作配置
 - **p**：进入 Passive 阻尼保护模式（`L2_B`）
 - **[**：在配置帧暂停动作（`R2`）
 - **]**：继续动作（`R1`）
@@ -198,6 +201,34 @@ controller/
 5. 需要进入 WBC Mode 时，按键盘 **3**
    - 按 **[** 或 **l** 可以暂停动作
    - 按 **]** 可以继续动作
+
+### 舞蹈动作配置
+
+WBC 舞蹈动作和模型统一配置在：
+
+```text
+config/wbc_dances.json
+```
+
+每个舞蹈 profile 需要配置对应的 ONNX 模型路径和动作 bin 数据目录：
+
+```json
+{
+  "id": "tiktok",
+  "name": "Tiktok Video",
+  "model_path": "model/wbc/tiktok_video.onnx",
+  "motion_path": "motion_data/lafan1/tiktok_video/converted_bin",
+  "start_idx": 0,
+  "end_idx": -1,
+  "pause_idx": 350,
+  "safe_projgravity_threshold": 0.6,
+  "debug": true,
+  "debug_interval": 50,
+  "return_to_amp_blend_frames": 20
+}
+```
+
+按键 **6 / 7 / 8** 只改变“下一次进入 WBC 使用的舞蹈配置”。WBC 正在跳舞时不会热切换 ONNX 或动作 bin，避免实时控制周期卡顿。
 
 ## 许可证
 

@@ -5,6 +5,7 @@
 #include "message/LowlevelState.h"
 #include "interface/IOInterface.h"
 #include "interface/CmdPanel.h"
+#include "common/DancePolicyManager.h"
 #include <string>
 #include <iostream>
 
@@ -14,16 +15,21 @@ public:
     CtrlComponents(IOInterface *ioInter):ioInter(ioInter){
         lowCmd = new LowlevelCmd();
         lowState = new LowlevelState();
+        danceManager = new DancePolicyManager(
+            std::string(PROJECT_ROOT_DIR) + "/config/wbc_dances.json",
+            std::string(PROJECT_ROOT_DIR));
         exitFlag = false;
     }
     ~CtrlComponents(){
         delete lowCmd;
         delete lowState;
+        delete danceManager;
         delete ioInter;
     }
     LowlevelCmd *lowCmd;
     LowlevelState *lowState;
     IOInterface *ioInter;
+    DancePolicyManager *danceManager;
 
     double dt;
     bool *running;

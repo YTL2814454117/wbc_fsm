@@ -1,0 +1,18 @@
+{
+    "default_dance": "tiktok",
+    "dances": [
+        {
+            "id": "tiktok",
+            "name": "Tiktok Video",
+            "model_path": "model/wbc/tiktok_video.onnx",
+            "motion_path": "motion_data/lafan1/tiktok_video/converted_bin",
+            "start_idx": 0,
+            "end_idx": -1,
+            "pause_idx": 350,
+            "safe_projgravity_threshold": 0.6,
+            "debug": true,
+            "debug_interval": 50,
+            "return_to_amp_blend_frames": 20
+        }
+    ]
+}

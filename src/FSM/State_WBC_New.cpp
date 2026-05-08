@@ -11,35 +11,6 @@ using json = nlohmann::json;
 State_WBC_New::State_WBC_New(CtrlComponents *ctrlComp)
     : FSMState(ctrlComp, FSMStateName::WBC, "wbc_new")
 {
-    // 加载配置文件
-    std::string config_path = std::string(PROJECT_ROOT_DIR) + "/config/wbc_new.json";
-    std::ifstream config_file(config_path);
-    if (!config_file.is_open())
-        throw std::runtime_error("Cannot open config file");
-
-    try
-    {
-        json config = json::parse(config_file);
-        std::string base_path = std::string(PROJECT_ROOT_DIR) + "/";
-        _model_path = base_path + config["model_path"].get<std::string>();
-        _folder_path = base_path + config["motion_path"].get<std::string>();
-        _anchor_terminate_thresh = config["safe_projgravity_threshold"].get<float>();
-        _start_refer_idx = config["start_idx"].get<int>();
-        _pause_refer_idx = config["pause_idx"].get<int>();
-        _end_refer_idx = config["end_idx"].get<int>();
-        if (config.contains("debug"))
-            _debug_enabled = config["debug"].get<bool>();
-        if (config.contains("debug_interval"))
-            _debug_interval = std::max(1, config["debug_interval"].get<int>());
-        if (config.contains("return_to_amp_blend_frames"))
-            _return_to_amp_blend_frames = std::max(1, config["return_to_amp_blend_frames"].get<int>());
-    }
-    catch (const std::exception &e)
-    {
-        throw;
-    }
-    config_file.close();
-
     // Official deploy writes stiffness/damping directly by physical motor id.
     double config_stiffness[NUM_DOF] = {
         40.2, 99.1, 40.2, 99.1, 28.5, 28.5, 40.2, 99.1, 40.2, 99.1, 28.5, 28.5,
@@ -56,7 +27,44 @@ State_WBC_New::State_WBC_New(CtrlComponents *ctrlComp)
         dof_Kds[i] = config_damping[i];
     }
 
-    // 加载动作捕捉二进制文件
+    _loadSelectedDanceProfile();
+}
+
+void State_WBC_New::_loadSelectedDanceProfile()
+{
+    if (!_ctrlComp->danceManager)
+        throw std::runtime_error("DancePolicyManager is not initialized");
+
+    const auto &profile = _ctrlComp->danceManager->currentProfile();
+    _start_refer_idx = profile.start_idx;
+    _pause_refer_idx = profile.pause_idx;
+    _end_refer_idx = profile.end_idx;
+    _anchor_terminate_thresh = profile.safe_projgravity_threshold;
+    _debug_enabled = profile.debug;
+    _debug_interval = std::max(1, profile.debug_interval);
+    _return_to_amp_blend_frames = std::max(1, profile.return_to_amp_blend_frames);
+
+    if (_active_dance_id == profile.id && _bin_data_loaded && _session)
+        return;
+
+    _active_dance_id = profile.id;
+    _model_path = _ctrlComp->danceManager->resolvePath(profile.model_path);
+    _folder_path = _ctrlComp->danceManager->resolvePath(profile.motion_path);
+
+    _session.reset();
+    _action.clear();
+    _body_ang_vel_w.clear();
+    _body_ang_vel_w_shape.clear();
+    _body_pos_w.clear();
+    _body_pos_w_shape.clear();
+    _body_quat_w.clear();
+    _body_quat_w_shape.clear();
+    _joint_pos.clear();
+    _joint_pos_shape.clear();
+    _joint_vel.clear();
+    _joint_vel_shape.clear();
+
+    // Load motion reference binary files for the selected dance profile.
     std::vector<float> unused_lin_vel;
     std::vector<uint32_t> unused_lin_vel_shape;
     std::vector<int64_t> unused_fps;
@@ -80,7 +88,9 @@ State_WBC_New::State_WBC_New(CtrlComponents *ctrlComp)
 
     _motion_frame_count = _joint_pos_shape[0];
     _loadPolicy();
-    std::cout << "[State_WBC_New] model=" << _model_path
+    std::cout << "[State_WBC_New] Loaded dance profile id=" << profile.id
+              << " name=\"" << profile.name << "\""
+              << " model=" << _model_path
               << " motion=" << _folder_path
               << " frames=" << _motion_frame_count
               << " obs=" << _obs_size_
@@ -362,6 +372,7 @@ void State_WBC_New::_run_return_to_amp_blend()
 
 void State_WBC_New::enter()
 {
+    _loadSelectedDanceProfile();
     _pause_flag = false;
     _terminate_flag = false;
     _returning_to_amp = false;

@@ -37,6 +37,7 @@ void FSM::run()
         _startTime = getSystemTime(); // 获取当前系统时间，作为控制周期的起始时间
 
         _ctrlComp->sendRecv(); // 发送接收数据，更新传感器信息和机器人状态
+        handleDanceSelectionCommand();
 
         if (_mode == FSMMode::NORMAL) // 正常工作模式
         {
@@ -71,6 +72,34 @@ void FSM::run()
         std::cerr << std::endl
                   << "Caught exception: " << e.what() << std::endl;
         _ctrlComp->exitFlag = true;
+    }
+}
+
+bool FSM::handleDanceSelectionCommand()
+{
+    if (!_ctrlComp->danceManager)
+        return false;
+
+    switch (_ctrlComp->lowState->userCmd)
+    {
+    case UserCommand::PREV_DANCE:
+        _ctrlComp->danceManager->selectPrev();
+        if (_currentState == _stateList.wbc)
+            std::cout << "[DancePolicy] WBC is running. New selection will apply on the next WBC entry." << std::endl;
+        _ctrlComp->lowState->userCmd = UserCommand::NONE;
+        return true;
+    case UserCommand::NEXT_DANCE:
+        _ctrlComp->danceManager->selectNext();
+        if (_currentState == _stateList.wbc)
+            std::cout << "[DancePolicy] WBC is running. New selection will apply on the next WBC entry." << std::endl;
+        _ctrlComp->lowState->userCmd = UserCommand::NONE;
+        return true;
+    case UserCommand::PRINT_DANCE:
+        _ctrlComp->danceManager->printCurrentProfile();
+        _ctrlComp->lowState->userCmd = UserCommand::NONE;
+        return true;
+    default:
+        return false;
     }
 }
 

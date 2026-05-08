@@ -41,6 +41,7 @@ public:
 
 private:
     FSMState *getNextState(FSMStateName stateName);
+    bool handleDanceSelectionCommand();
     CtrlComponents *_ctrlComp;
     FSMState *_currentState;
     FSMState *_nextState;

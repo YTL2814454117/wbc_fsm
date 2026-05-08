@@ -33,6 +33,9 @@ enum class UserCommand
     R2_UP,    // high speed mode
     R2_DOWN,  // low speed mode
     R2_B,     // back to loco from amp
+    PREV_DANCE,
+    NEXT_DANCE,
+    PRINT_DANCE,
 
 };
 

@@ -44,6 +44,7 @@ private:
     float _last_targetPos_rl[NUM_DOF];
 
     void _loadPolicy();
+    void _loadSelectedDanceProfile();
     void _observations_compute();
     void _action_compute();
     void _debug_print();
@@ -81,9 +82,10 @@ private:
     std::vector<float> _joint_vel;
     std::vector<uint32_t> _joint_vel_shape;
 
-    bool _bin_data_loaded;
+    bool _bin_data_loaded = false;
     std::string _model_path;
     std::string _folder_path;
+    std::string _active_dance_id;
 
     const int _obs_dim = 154;
     const int _policy_action_dim = 29;

@@ -114,6 +114,18 @@ IOSDK::IOSDK()
                     userCmd_ = UserCommand::R1_RIGHT;
                     std::cout << "\n[Keyboard] 5 -> WBC RIGHT (maps to R1_RIGHT)" << std::endl;
                     break;
+                case '6':
+                    userCmd_ = UserCommand::PREV_DANCE;
+                    std::cout << "\n[Keyboard] 6 -> SELECT PREVIOUS DANCE" << std::endl;
+                    break;
+                case '7':
+                    userCmd_ = UserCommand::NEXT_DANCE;
+                    std::cout << "\n[Keyboard] 7 -> SELECT NEXT DANCE" << std::endl;
+                    break;
+                case '8':
+                    userCmd_ = UserCommand::PRINT_DANCE;
+                    std::cout << "\n[Keyboard] 8 -> PRINT CURRENT DANCE" << std::endl;
+                    break;
 
                 // ================= Motion control and pause/resume keys =================
                 case 'p':
