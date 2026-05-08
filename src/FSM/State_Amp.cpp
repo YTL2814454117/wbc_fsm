@@ -41,6 +41,12 @@ State_AMP::State_AMP(CtrlComponents *ctrlComp)
     _loadPolicy();
 }
 
+void State_AMP::requestAutoLocoAfterEnter(double delay_sec)
+{
+    _auto_loco_after_enter_requested = true;
+    _auto_loco_delay = std::max(0.0, delay_sec);
+}
+
 void State_AMP::_getUserCmd(){
     if (_userValue.ly < -dead_zone)
         if (_high_speed_mode)
@@ -245,6 +251,10 @@ void State_AMP::enter()
 {
     _high_speed_mode = false;
     _terminate_flag = false;
+    _auto_loco_active = _auto_loco_after_enter_requested;
+    _auto_loco_after_enter_requested = false;
+    _auto_loco_elapsed = 0.0;
+    _auto_loco_last_print_second = -1;
     for (int i = 0; i < NUM_DOF; i++)
     {
         _lowCmd->motorCmd[i].mode = 10;
@@ -258,10 +268,31 @@ void State_AMP::enter()
         this->_joint_q[i] = this->_default_dof_pos[i];
     }
     _init_buffers();
+    if (_auto_loco_active)
+    {
+        std::cout << "[State_AMP] Entered after WBC dance handoff. Will switch to Loco after "
+                  << _auto_loco_delay << " seconds." << std::endl;
+    }
+    else
+    {
+        std::cout << "[State_AMP] Enter AMP state." << std::endl;
+    }
 }
 
 void State_AMP::run()
 {
+    if (_auto_loco_active)
+    {
+        _auto_loco_elapsed += _ctrlComp->dt;
+        int remaining = static_cast<int>(std::ceil(std::max(0.0, _auto_loco_delay - _auto_loco_elapsed)));
+        if (remaining != _auto_loco_last_print_second)
+        {
+            _auto_loco_last_print_second = remaining;
+            std::cout << "[State_AMP] Stabilizing before Loco handoff. remaining="
+                      << remaining << "s" << std::endl;
+        }
+    }
+
     _observations_compute(); 
     _action_compute(); 
     memcpy(this->_targetPos_rl, this->_joint_q, sizeof(this->_joint_q));
@@ -280,6 +311,7 @@ void State_AMP::run()
 
 void State_AMP::exit()
 {
+    _auto_loco_active = false;
     std::cout << "[State_AMP] Exiting AMP state." << std::endl;
 }
 
@@ -322,6 +354,11 @@ FSMStateName State_AMP::checkChange()
         return FSMStateName::AMP;
     }
      else if(_lowState->userCmd == UserCommand::R2_B){
+        return FSMStateName::LOCO;
+    }
+    else if (_auto_loco_active && _auto_loco_elapsed >= _auto_loco_delay)
+    {
+        std::cout << "[State_AMP] Stabilization complete. Switching to Loco." << std::endl;
         return FSMStateName::LOCO;
     }
     else

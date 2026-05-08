@@ -46,6 +46,11 @@ void FSM::run()
             {
                 _mode = FSMMode::CHANGE;
                 _nextState = getNextState(_nextStateName);
+                if (_currentState == _stateList.wbc && _nextStateName == FSMStateName::AMP)
+                {
+                    _stateList.amp->requestAutoLocoAfterEnter(3.0);
+                    std::cout << "[FSM] WBC completed AMP handoff. AMP will stabilize for 3.0s before Loco." << std::endl;
+                }
                 std::cout << "Switched from " << _currentState->_stateNameString
                           << " to " << _nextState->_stateNameString << std::endl;
             }
