@@ -49,7 +49,8 @@ private:
     void _debug_print();
     void _begin_return_to_loco(const std::string &reason);
     void _run_return_to_loco_blend();
-    float _default_motor_q(int motor_id) const;
+    float _loco_stand_target_q(int motor_id) const;
+    float _base_projected_gravity_error() const;
     std::vector<float> _current_torso_quat() const;
     std::vector<float> _reference_root_quat(int frame_idx) const;
     std::vector<float> _reference_torso_quat(int frame_idx) const;
@@ -108,7 +109,10 @@ private:
     bool _returning_to_loco = false;
     bool _return_to_loco_ready = false;
     int _return_to_loco_blend_frames = 100;
+    int _return_to_loco_start_before_end_frames = 100;
+    float _return_to_loco_max_gravity_error = 0.45f;
     unsigned int _return_blend_step = 0;
+    unsigned int _return_hold_counter = 0;
     float _return_blend_start_q[NUM_DOF];
     bool _debug_enabled = true;
     int _debug_interval = 50;
@@ -136,6 +140,14 @@ private:
         0.00546, 0.672, 0.67, 0.2, 0.202, -0.368, -0.355, 0.194, -0.196, -0.00644, 0.00976,
         0.00258, -0.00029, 0.605, 0.596, 0.00818, 0.00322, 0.00293, -0.00339, -0.00955,
         -0.00715};
+
+    // Loco policy default stand pose, indexed by physical motor id. This is the handoff target.
+    const float _loco_default_motor_pos[NUM_DOF] = {
+        -0.2, 0.0, 0.0, 0.42, -0.23, 0.0,
+        -0.2, 0.0, 0.0, 0.42, -0.23, 0.0,
+        0.0, 0.0, 0.0,
+        0.35, 0.18, 0.0, 0.87, 0.0, 0.0, 0.0,
+        0.35, -0.18, 0.0, 0.87, 0.0, 0.0, 0.0};
 
     // 3. 动作缩放因子 (Action Scale) - 对应模型输出顺序
     const float _action_scale[NUM_DOF] = {

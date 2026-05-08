@@ -33,6 +33,10 @@ State_WBC_New::State_WBC_New(CtrlComponents *ctrlComp)
             _debug_interval = std::max(1, config["debug_interval"].get<int>());
         if (config.contains("return_to_loco_blend_frames"))
             _return_to_loco_blend_frames = std::max(1, config["return_to_loco_blend_frames"].get<int>());
+        if (config.contains("return_to_loco_start_before_end_frames"))
+            _return_to_loco_start_before_end_frames = std::max(0, config["return_to_loco_start_before_end_frames"].get<int>());
+        if (config.contains("return_to_loco_max_gravity_error"))
+            _return_to_loco_max_gravity_error = std::max(0.0f, config["return_to_loco_max_gravity_error"].get<float>());
     }
     catch (const std::exception &e)
     {
@@ -277,14 +281,20 @@ void State_WBC_New::_action_compute()
     }
 }
 
-float State_WBC_New::_default_motor_q(int motor_id) const
+float State_WBC_New::_loco_stand_target_q(int motor_id) const
 {
-    for (int policy_idx = 0; policy_idx < NUM_DOF; ++policy_idx)
-    {
-        if (dof_mapping[policy_idx] == motor_id)
-            return _default_dof_pos[policy_idx];
-    }
-    return 0.0f;
+    return _loco_default_motor_pos[std::clamp(motor_id, 0, NUM_DOF - 1)];
+}
+
+float State_WBC_New::_base_projected_gravity_error() const
+{
+    std::vector<float> base_quat = {
+        static_cast<float>(_lowState->imu.quaternion[0]),
+        static_cast<float>(_lowState->imu.quaternion[1]),
+        static_cast<float>(_lowState->imu.quaternion[2]),
+        static_cast<float>(_lowState->imu.quaternion[3])};
+    std::vector<float> projected_gravity = QuatRotateInverse(base_quat, _gravity_vec);
+    return std::abs(projected_gravity[2] - (-1.0f));
 }
 
 void State_WBC_New::_begin_return_to_loco(const std::string &reason)
@@ -295,6 +305,7 @@ void State_WBC_New::_begin_return_to_loco(const std::string &reason)
     _returning_to_loco = true;
     _return_to_loco_ready = false;
     _return_blend_step = 0;
+    _return_hold_counter = 0;
     _pause_flag = false;
 
     for (int j = 0; j < NUM_DOF; ++j)
@@ -318,7 +329,7 @@ void State_WBC_New::_run_return_to_loco_blend()
     _debug_target_delta_max = 0.0f;
     for (int j = 0; j < NUM_DOF; ++j)
     {
-        const float target_q = _default_motor_q(j);
+        const float target_q = _loco_stand_target_q(j);
         _joint_q[j] = _return_blend_start_q[j] + alpha * (target_q - _return_blend_start_q[j]);
         _debug_target_delta_max = std::max(_debug_target_delta_max, std::abs(_joint_q[j] - _last_targetPos_rl[j]));
 
@@ -346,9 +357,26 @@ void State_WBC_New::_run_return_to_loco_blend()
 
     if (_return_blend_step >= static_cast<unsigned int>(_return_to_loco_blend_frames))
     {
-        _returning_to_loco = false;
-        _return_to_loco_ready = true;
-        std::cout << "[State_WBC_New] Return-to-Loco blend complete. Requesting Loco state." << std::endl;
+        const float base_gravity_error = _base_projected_gravity_error();
+        if (base_gravity_error <= _return_to_loco_max_gravity_error)
+        {
+            _returning_to_loco = false;
+            _return_to_loco_ready = true;
+            std::cout << "[State_WBC_New] Return-to-Loco blend complete. base_grav_err="
+                      << base_gravity_error << ". Requesting Loco state." << std::endl;
+        }
+        else
+        {
+            _return_blend_step = static_cast<unsigned int>(_return_to_loco_blend_frames - 1);
+            ++_return_hold_counter;
+            if (_return_hold_counter == 1 || _return_hold_counter % 25 == 0)
+            {
+                std::cout << "[State_WBC_New] Return-to-Loco hold: base_grav_err="
+                          << base_gravity_error
+                          << " > " << _return_to_loco_max_gravity_error
+                          << ". Holding Loco stand target, not handing off yet." << std::endl;
+            }
+        }
     }
 }
 
@@ -359,6 +387,7 @@ void State_WBC_New::enter()
     _returning_to_loco = false;
     _return_to_loco_ready = false;
     _return_blend_step = 0;
+    _return_hold_counter = 0;
     _refer_idx = _start_refer_idx;
     if (_end_refer_idx < 0)
         _end_refer_idx = _motion_frame_count - 1;
@@ -379,7 +408,10 @@ void State_WBC_New::enter()
     _init_buffers();
     std::cout << "[State_WBC_New] Enter dance. frames="
               << _start_refer_idx << "->" << _end_refer_idx
-              << ", auto return to Loco enabled." << std::endl;
+              << ", auto return to Loco enabled, start_before_end="
+              << _return_to_loco_start_before_end_frames
+              << ", blend_frames=" << _return_to_loco_blend_frames
+              << "." << std::endl;
 }
 
 void State_WBC_New::run()
@@ -395,9 +427,10 @@ void State_WBC_New::run()
     if (_refer_idx >= (unsigned int)_end_refer_idx)
         _refer_idx = _end_refer_idx;
 
-    if (!_pause_flag && _refer_idx >= static_cast<unsigned int>(_end_refer_idx))
+    const int return_start_idx = std::max(_start_refer_idx, _end_refer_idx - _return_to_loco_start_before_end_frames);
+    if (!_pause_flag && _refer_idx >= static_cast<unsigned int>(return_start_idx))
     {
-        _begin_return_to_loco("Dance motion reached final frame " + std::to_string(_refer_idx) + "/" + std::to_string(_end_refer_idx));
+        _begin_return_to_loco("Dance motion reached return window at frame " + std::to_string(_refer_idx) + "/" + std::to_string(_end_refer_idx));
         _run_return_to_loco_blend();
         return;
     }
