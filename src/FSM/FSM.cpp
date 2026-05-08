@@ -26,7 +26,7 @@ void FSM::initialize()
     _nextState = _currentState;
     _mode = FSMMode::NORMAL;
 
-    std::cout << "Press **start** to enter position control mode..." << std::endl;
+    std::cout << "Press keyboard [1] to enter position control mode..." << std::endl;
 }
 
 // FSM的运行函数，包含状态机的核心逻辑

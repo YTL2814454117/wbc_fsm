@@ -35,7 +35,7 @@ void State_FixedStand::enter()
         throw;
     }
     config_file.close();
-    std::cout << "Please make the robot stand first, stabilize it, then press **R2+A** to enter Locomode" << std::endl;
+    std::cout << "Please make the robot stand first, stabilize it, then press keyboard [2] to enter Loco mode" << std::endl;
 }
 
 // 在状态运行时，根据预设的固定站立姿势目标位置和当前关节位置，进行线性差值控制，在2秒内逐渐将机器人移动到固定站立姿势

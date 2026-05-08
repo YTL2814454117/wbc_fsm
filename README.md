@@ -98,10 +98,10 @@ Example configuration (`wbc.json`):
     robot_scene: "scene_29dof.xml" # Robot scene, /unitree_robots/[robot]/scene.xml 
     domain_id: 1  # Domain id
     interface: "lo" # Interface 
-    use_joystick: 1 # Simulate Unitree WirelessController using a gamepad
-    joystick_type: "xbox" # support "xbox" and "switch" gamepad layout
-    joystick_device: "/dev/input/js0" # Device path
-    joystick_bits: 16 # Some game controllers may only have 8-bit accuracy
+    use_joystick: 0 # Keyboard input is handled by this controller process
+    joystick_type: "xbox" # Optional only when using joystick simulation
+    joystick_device: "/dev/input/js0" # Optional joystick device path
+    joystick_bits: 16 # Optional joystick accuracy setting
     print_scene_information: 1 # Print link, joint and sensors information of robot
     enable_elastic_band: 1 # Virtual spring band, used for lifting h1
     ```
@@ -145,27 +145,39 @@ Example configuration (`wbc.json`):
 
 ## Controls
 
-### Controller Commands
+### Keyboard Commands
 
-- **R1**: Resume WBC state (when paused)
-- **R2**: Pause WBC state (at specified frame)
-- **L2**: Pause WBC state (at current frame)
-- **R2+A**: Switch to Loco mode
-- **L2+B**: Switch to Passive mode
-- **SELECT**: Exit program
+This project currently uses terminal keyboard input instead of the Unitree wireless controller. The `UserCommand` names in parentheses are kept for compatibility with the existing FSM logic.
+
+- **0**: Exit program (`SELECT`)
+- **1**: Enter fixed-stand / position-control preparation state (`START`)
+- **2**: Enter Loco mode (`R2_A`)
+- **3**: Enter WBC mode (`R1_UP`)
+- **4**: Enter WBC Left state (`R1_LEFT`)
+- **5**: Enter WBC Right state (`R1_RIGHT`)
+- **p**: Enter Passive damping state (`L2_B`)
+- **[**: Pause motion at the configured reference frame (`R2`)
+- **]**: Resume motion (`R1`)
+- **l**: Pause motion at the current reference frame (`L2`)
+- **b**: Return from AMP to Loco (`R2_B`)
+- **+ / =**: Switch to high-speed mode (`R2_UP`)
+- **-**: Switch to low-speed mode (`R2_DOWN`)
+- **w / s**: Forward / backward velocity command
+- **a / d**: Left / right correction command
+- **q / e**: Left / right yaw correction command
+- **Space**: Clear velocity command
 
 ### Operation Procedure
 
 1. After starting the program, the robot enters **Damping Protection Mode**
-2. Press **START** to enter position control mode
+2. Press keyboard **1** to enter fixed-stand / position-control preparation state
 3. Suspend the robot (In simulation, `enable_elastic_band` is enabled by default. Press keyboard **9** to release the band, press again to re-suspend. Press **8** to lower, **7** to raise)
-4. Press **R2+A** on the controller to enter Loco(AMP) Mode, then release the suspension band
-   - Press **R2+up** to enter high speed mode(running)
-   - Press **R2+down** to enter low speed mode(walking)
-5. Press **R2+B** on the controller to enter Loco(RL) Mode
-6. Press **R1+Up** on the controller to enter WBC (Whole-Body Control) Mode
-   - Press **R2** to pause the motion
-   - Press **R1** to resume the motion
+4. Press keyboard **2** to enter Loco(AMP) Mode, then release the suspension band
+   - Press **+ / =** to enter high-speed mode (running)
+   - Press **-** to enter low-speed mode (walking)
+5. Press keyboard **3** to enter WBC (Whole-Body Control) Mode
+   - Press **[** or **l** to pause the motion
+   - Press **]** to resume the motion
 
 ## Project Structure
 

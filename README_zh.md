@@ -98,10 +98,10 @@ make -j4
     robot_scene: "scene_29dof.xml" # Robot scene, /unitree_robots/[robot]/scene.xml 
     domain_id: 1  # Domain id
     interface: "lo" # Interface 
-    use_joystick: 1 # Simulate Unitree WirelessController using a gamepad
-    joystick_type: "xbox" # support "xbox" and "switch" gamepad layout
-    joystick_device: "/dev/input/js0" # Device path
-    joystick_bits: 16 # Some game controllers may only have 8-bit accuracy
+    use_joystick: 0 # 当前控制命令由本控制器进程的终端键盘输入生成
+    joystick_type: "xbox" # 仅在重新启用手柄仿真时使用
+    joystick_device: "/dev/input/js0" # 可选手柄设备路径
+    joystick_bits: 16 # 可选手柄精度配置
     print_scene_information: 1 # Print link, joint and sensors information of robot
     enable_elastic_band: 1 # Virtual spring band, used for lifting h1
     ```
@@ -165,27 +165,39 @@ controller/
 
 ## 控制说明
 
-### 操作指令
+### 键盘操作指令
 
-- **R1**：恢复 WBC 状态（暂停时）
-- **R2**：暂停 WBC 状态（在指定帧）
-- **L2**：暂停 WBC 状态（在当前帧）
-- **R2+A**：切换到 Loco 模式
-- **L2+B**：切换到 Passive 模式
-- **SELECT**：退出程序
+当前工程已经将操作输入从宇树遥控器切换为电脑终端键盘。括号中的 `UserCommand` 名称保留了原遥控器命名，是为了兼容状态机内部逻辑。
+
+- **0**：退出程序（`SELECT`）
+- **1**：进入固定站立 / 位控准备状态（`START`）
+- **2**：进入 Loco 模式（`R2_A`）
+- **3**：进入 WBC 全身控制模式（`R1_UP`）
+- **4**：进入 WBC Left 状态（`R1_LEFT`）
+- **5**：进入 WBC Right 状态（`R1_RIGHT`）
+- **p**：进入 Passive 阻尼保护模式（`L2_B`）
+- **[**：在配置帧暂停动作（`R2`）
+- **]**：继续动作（`R1`）
+- **l**：在当前帧暂停动作（`L2`）
+- **b**：从 AMP 返回 Loco（`R2_B`）
+- **+ / =**：切换快速模式（`R2_UP`）
+- **-**：切换慢速模式（`R2_DOWN`）
+- **w / s**：前进 / 后退速度指令
+- **a / d**：左右方向修正指令
+- **q / e**：左转 / 右转修正指令
+- **空格**：清零速度指令
 
 ### 操作步骤
 
 1. 运行程序后，机器人处于**阻尼保护模式**
-2. 按 **START** 键进入位控模式
+2. 按键盘 **1** 进入固定站立 / 位控准备状态
 3. 将机器人悬吊起来（在仿真中默认启用 `enable_elastic_band`，按键盘数字键 **9** 可以松开绑带，再次按下可重新悬吊，数字键 **8** 下放，数字键 **7** 上拉）
-4. 按遥控器上的 **R2+A** 进入 Loco(AMP) Mode，此时松开吊绳
-   - 按 **R2+up** 可以进入快速模式（跑步）
-   - 按 **R2+down** 可以进入慢速模式（行走）
-5. 按遥控器上的 **R2+A** 进入 Loco(RL) Mode
-6. 按遥控器上的 **R1+Up** 进入全身控制模式（WBC Mode）
-   - 按 **R2**或**L2** 可以暂停动作
-   - 按 **R1** 可以继续动作
+4. 按键盘 **2** 进入 Loco(AMP) Mode，此时松开吊绳
+   - 按 **+ / =** 可以进入快速模式（跑步）
+   - 按 **-** 可以进入慢速模式（行走）
+5. 需要进入 WBC Mode 时，按键盘 **3**
+   - 按 **[** 或 **l** 可以暂停动作
+   - 按 **]** 可以继续动作
 
 ## 许可证
 

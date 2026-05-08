@@ -1,14 +1,13 @@
 #include "interface/IOSDK.h"
 #include <stdio.h>
 #include <iostream>
-// --- 新增头文件开始 ---
+// Keyboard input support for terminal control.
 #include <termios.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <thread>
-// --- 新增头文件结束 ---
 
-// --- 新增：Linux 无阻塞键盘检测函数 ---
+// Non-blocking Linux keyboard check. Used by the terminal control thread.
 int kbhit(void)
 {
     struct termios oldt, newt;
@@ -82,7 +81,7 @@ IOSDK::IOSDK()
     userValue_.setZero();
     mode_machine_ = 0;
 
-    // --- 新增：启动后台键盘监听线程 ---
+    // Start a background terminal keyboard listener.
     std::thread([this]()
                 {
         while (true) {
@@ -90,118 +89,116 @@ IOSDK::IOSDK()
                 char c = getchar();
                 switch (c)
                 {
-                // ================= 核心状态切换 (数字键) =================
+                // ================= State switching (number keys) =================
                 case '0':
                     userCmd_ = UserCommand::SELECT;
-                    std::cout << "\n[Key] EXIT (SELECT)" << std::endl;
+                    std::cout << "\n[Keyboard] 0 -> EXIT (maps to SELECT)" << std::endl;
                     break;
                 case '1':
                     userCmd_ = UserCommand::START;
-                    std::cout << "\n[Key] FIXED POSE (START)" << std::endl;
+                    std::cout << "\n[Keyboard] 1 -> FIXED POSE (maps to START)" << std::endl;
                     break;
                 case '2':
                     userCmd_ = UserCommand::R2_A;
-                    std::cout << "\n[Key] LOCO MODE (R2_A)" << std::endl;
+                    std::cout << "\n[Keyboard] 2 -> LOCO MODE (maps to R2_A)" << std::endl;
                     break;
                 case '3':
                     userCmd_ = UserCommand::R1_UP;
-                    std::cout << "\n[Key] WBC MODE (R1_UP)" << std::endl;
+                    std::cout << "\n[Keyboard] 3 -> WBC MODE (maps to R1_UP)" << std::endl;
                     break;
                 case '4':
                     userCmd_ = UserCommand::R1_LEFT;
-                    std::cout << "\n[Key] WBC LEFT (R1_LEFT)" << std::endl;
+                    std::cout << "\n[Keyboard] 4 -> WBC LEFT (maps to R1_LEFT)" << std::endl;
                     break;
                 case '5':
                     userCmd_ = UserCommand::R1_RIGHT;
-                    std::cout << "\n[Key] WBC RIGHT (R1_RIGHT)" << std::endl;
+                    std::cout << "\n[Keyboard] 5 -> WBC RIGHT (maps to R1_RIGHT)" << std::endl;
                     break;
 
-                // ================= 运动控制与暂停 (功能键) =================
+                // ================= Motion control and pause/resume keys =================
                 case 'p':
                     userCmd_ = UserCommand::L2_B;
-                    std::cout << "\n[Key] PASSIVE (L2_B)" << std::endl;
+                    std::cout << "\n[Keyboard] p -> PASSIVE (maps to L2_B)" << std::endl;
                     break;
                 case '[':
                     userCmd_ = UserCommand::R2;
-                    std::cout << "\n[Key] PAUSE IN SETTED IDX (R2)" << std::endl;
+                    std::cout << "\n[Keyboard] [ -> PAUSE AT CONFIGURED FRAME (maps to R2)" << std::endl;
                     break;
                 case ']':
                     userCmd_ = UserCommand::R1;
-                    std::cout << "\n[Key] MOTION CONTINUE (R1)" << std::endl;
+                    std::cout << "\n[Keyboard] ] -> MOTION CONTINUE (maps to R1)" << std::endl;
                     break;
                 case 'l':
                     userCmd_ = UserCommand::L2;
-                    std::cout << "\n[Key] PAUSE IN CURRENT IDX (L2)" << std::endl;
+                    std::cout << "\n[Keyboard] l -> PAUSE AT CURRENT FRAME (maps to L2)" << std::endl;
                     break;
                 case 'b':
                     userCmd_ = UserCommand::R2_B;
-                    std::cout << "\n[Key] BACK TO LOCO FROM AMP (R2_B)" << std::endl;
+                    std::cout << "\n[Keyboard] b -> BACK TO LOCO FROM AMP (maps to R2_B)" << std::endl;
                     break;
 
-                // ================= 速度档位调节 =================
+                // ================= Speed profile switching =================
                 case '+':
                 case '=':
                     userCmd_ = UserCommand::R2_UP;
-                    std::cout << "\n[Key] HIGH SPEED MODE (R2_UP)" << std::endl;
+                    std::cout << "\n[Keyboard] +/= -> HIGH SPEED MODE (maps to R2_UP)" << std::endl;
                     break;
                 case '-':
                     userCmd_ = UserCommand::R2_DOWN;
-                    std::cout << "\n[Key] LOW SPEED MODE (R2_DOWN)" << std::endl;
+                    std::cout << "\n[Keyboard] - -> LOW SPEED MODE (maps to R2_DOWN)" << std::endl;
                     break;
 
-                    // ================= 摇杆速度控制 (WASD + QE) =================
-                    // ================= 纯净版摇杆控制 =================
+                    // ================= Keyboard velocity control (WASD + QE) =================
                 case 'w':
                     userValue_.ly = 0.5; // 前进
                     userValue_.lx = 0.0; // 强制清零侧移
                     userValue_.rx = 0.0; // 强制清零转向
                     userValue_.ry = 0.0; // 保持不变
-                    std::cout << "\n[Key] Forward (Pure)" << std::endl;
+                    std::cout << "\n[Keyboard] w -> Forward" << std::endl;
                     break;
                 case 's':
                     userValue_.ly = -0.5;
                     userValue_.lx = 0.0;
                     userValue_.rx = 0.0;
                     userValue_.ry = 0.0;
-                    std::cout << "\n[Key] Backward (Pure)" << std::endl;
+                    std::cout << "\n[Keyboard] s -> Backward" << std::endl;
                     break;
                 case 'a':
                     userValue_.lx = 0.0;
                     userValue_.ly = 0.0;
                     userValue_.rx = 0.5;
                     userValue_.ry = 0.0;
-                    std::cout << "\n[Key] Left Strafing" << std::endl;
+                    std::cout << "\n[Keyboard] a -> Left / yaw-positive command" << std::endl;
                     break;
                 case 'd':
                     userValue_.lx = 0.0;
                     userValue_.ly = 0.0;
                     userValue_.rx = -0.5;
                     userValue_.ry = 0.0;
-                    std::cout << "\n[Key] Right Strafing" << std::endl;
+                    std::cout << "\n[Keyboard] d -> Right / yaw-negative command" << std::endl;
                     break;
-                // 保留单独的转向键，用来手动纠偏
+                // Dedicated yaw correction keys.
                 case 'q':
                     userValue_.rx = 0.5;
-                    std::cout << "\n[Key] Turn Left" << std::endl;
+                    std::cout << "\n[Keyboard] q -> Turn Left" << std::endl;
                     break;
                 case 'e':
                     userValue_.rx = -0.5;
-                    std::cout << "\n[Key] Turn Right" << std::endl;
+                    std::cout << "\n[Keyboard] e -> Turn Right" << std::endl;
                     break;
 
-                // ================= 紧急刹车 =================
+                // ================= Emergency stop for commanded velocity =================
                 case ' ':
                     userValue_.lx = 0;
                     userValue_.ly = 0;
                     userValue_.rx = 0;
-                    std::cout << "\n[Key] STOP!" << std::endl;
+                    std::cout << "\n[Keyboard] Space -> STOP velocity command" << std::endl;
                     break;
                 }
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(20)); // 休息20ms，防止吃光CPU
         } })
         .detach(); // 让这个线程在后台默默运行
-    // --- 新增结束 ---
 }
 
 // 发送接收函数的实现
@@ -239,7 +236,7 @@ void IOSDK::sendRecv(const LowlevelCmd *cmd, LowlevelState *state)
     }
     state->imu.quaternion[3] = _lowState.imu.quaternion[3];
 
-    state->userCmd = userCmd_; // 键盘或者手柄输入的用户命令
+    state->userCmd = userCmd_; // User command generated by the keyboard listener.
     state->userValue = userValue_;
 }
 
@@ -273,7 +270,7 @@ void IOSDK::LowStateHandler(const void *message)
     _lowState.imu.accelerometer[1] = low_state.imu_state().accelerometer()[1];
     _lowState.imu.accelerometer[2] = low_state.imu_state().accelerometer()[2];
 
-    // update gamepad
+    // Keep decoding wireless remote data for compatibility/debug. Keyboard input is the active command source below.
     memcpy(rx_.buff, &low_state.wireless_remote()[0], 40);
     gamepad_.update(rx_.RF_RX);
 
@@ -286,6 +283,7 @@ void IOSDK::LowStateHandler(const void *message)
     }
 
     /*
+    Legacy wireless remote mapping. Disabled after switching operator input to keyboard.
     if (gamepad_.start.pressed)
     {
         userCmd_ = UserCommand::START;
