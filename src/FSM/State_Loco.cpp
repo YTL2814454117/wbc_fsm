@@ -217,6 +217,8 @@ void State_Loco::enter()
     {
         _observations_compute();
     }
+
+    std::cout << "[State_Loco] Enter Loco state. Policy hidden state reset; keyboard velocity command is active." << std::endl;
 }
 
 void State_Loco::run()

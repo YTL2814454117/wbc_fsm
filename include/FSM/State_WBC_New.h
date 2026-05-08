@@ -47,6 +47,9 @@ private:
     void _observations_compute();
     void _action_compute();
     void _debug_print();
+    void _begin_return_to_loco(const std::string &reason);
+    void _run_return_to_loco_blend();
+    float _default_motor_q(int motor_id) const;
     std::vector<float> _current_torso_quat() const;
     std::vector<float> _reference_root_quat(int frame_idx) const;
     std::vector<float> _reference_torso_quat(int frame_idx) const;
@@ -102,6 +105,11 @@ private:
     float _anchor_terminate_thresh = 0.5f;
     bool _terminate_flag = false;
     bool _pause_curr_flag = false;
+    bool _returning_to_loco = false;
+    bool _return_to_loco_ready = false;
+    int _return_to_loco_blend_frames = 100;
+    unsigned int _return_blend_step = 0;
+    float _return_blend_start_q[NUM_DOF];
     bool _debug_enabled = true;
     int _debug_interval = 50;
     unsigned int _debug_counter = 0;

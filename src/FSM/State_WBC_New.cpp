@@ -3,6 +3,7 @@
 #include "common/read_traj.h"
 #include <fstream>
 #include <algorithm>
+#include <string>
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
@@ -30,6 +31,8 @@ State_WBC_New::State_WBC_New(CtrlComponents *ctrlComp)
             _debug_enabled = config["debug"].get<bool>();
         if (config.contains("debug_interval"))
             _debug_interval = std::max(1, config["debug_interval"].get<int>());
+        if (config.contains("return_to_loco_blend_frames"))
+            _return_to_loco_blend_frames = std::max(1, config["return_to_loco_blend_frames"].get<int>());
     }
     catch (const std::exception &e)
     {
@@ -274,10 +277,88 @@ void State_WBC_New::_action_compute()
     }
 }
 
+float State_WBC_New::_default_motor_q(int motor_id) const
+{
+    for (int policy_idx = 0; policy_idx < NUM_DOF; ++policy_idx)
+    {
+        if (dof_mapping[policy_idx] == motor_id)
+            return _default_dof_pos[policy_idx];
+    }
+    return 0.0f;
+}
+
+void State_WBC_New::_begin_return_to_loco(const std::string &reason)
+{
+    if (_returning_to_loco || _return_to_loco_ready)
+        return;
+
+    _returning_to_loco = true;
+    _return_to_loco_ready = false;
+    _return_blend_step = 0;
+    _pause_flag = false;
+
+    for (int j = 0; j < NUM_DOF; ++j)
+    {
+        _return_blend_start_q[j] = static_cast<float>(_lowState->motorState[j].q);
+        _joint_q[j] = _return_blend_start_q[j];
+        _last_targetPos_rl[j] = _return_blend_start_q[j];
+    }
+
+    std::cout << "\n[State_WBC_New] " << reason
+              << ". Blending back to Loco stand target over "
+              << _return_to_loco_blend_frames << " control frames." << std::endl;
+}
+
+void State_WBC_New::_run_return_to_loco_blend()
+{
+    const float raw_alpha = std::min(1.0f, static_cast<float>(_return_blend_step + 1) /
+                                              static_cast<float>(_return_to_loco_blend_frames));
+    const float alpha = raw_alpha * raw_alpha * (3.0f - 2.0f * raw_alpha);
+
+    _debug_target_delta_max = 0.0f;
+    for (int j = 0; j < NUM_DOF; ++j)
+    {
+        const float target_q = _default_motor_q(j);
+        _joint_q[j] = _return_blend_start_q[j] + alpha * (target_q - _return_blend_start_q[j]);
+        _debug_target_delta_max = std::max(_debug_target_delta_max, std::abs(_joint_q[j] - _last_targetPos_rl[j]));
+
+        _lowCmd->motorCmd[j].mode = 10;
+        _lowCmd->motorCmd[j].q = _joint_q[j];
+        _lowCmd->motorCmd[j].dq = 0;
+        _lowCmd->motorCmd[j].tau = 0;
+        _lowCmd->motorCmd[j].Kp = dof_Kps[j];
+        _lowCmd->motorCmd[j].Kd = dof_Kds[j];
+        _last_targetPos_rl[j] = _joint_q[j];
+    }
+
+    ++_return_blend_step;
+    if (_return_blend_step == 1 ||
+        _return_blend_step % static_cast<unsigned int>(std::max(1, _return_to_loco_blend_frames / 4)) == 0 ||
+        _return_blend_step >= static_cast<unsigned int>(_return_to_loco_blend_frames))
+    {
+        std::cout << "\n[State_WBC_New] Return-to-Loco blend "
+                  << std::min(_return_blend_step, static_cast<unsigned int>(_return_to_loco_blend_frames))
+                  << "/" << _return_to_loco_blend_frames
+                  << " alpha=" << alpha
+                  << " max_target_step=" << _debug_target_delta_max
+                  << std::endl;
+    }
+
+    if (_return_blend_step >= static_cast<unsigned int>(_return_to_loco_blend_frames))
+    {
+        _returning_to_loco = false;
+        _return_to_loco_ready = true;
+        std::cout << "[State_WBC_New] Return-to-Loco blend complete. Requesting Loco state." << std::endl;
+    }
+}
+
 void State_WBC_New::enter()
 {
     _pause_flag = false;
     _terminate_flag = false;
+    _returning_to_loco = false;
+    _return_to_loco_ready = false;
+    _return_blend_step = 0;
     _refer_idx = _start_refer_idx;
     if (_end_refer_idx < 0)
         _end_refer_idx = _motion_frame_count - 1;
@@ -296,14 +377,31 @@ void State_WBC_New::enter()
     std::fill(_action.begin(), _action.end(), 0.0f);
     _init_yaw_quat = quat_multiply(yaw_quat(_current_torso_quat()), quat_conjugate(yaw_quat(_reference_torso_quat(_refer_idx))));
     _init_buffers();
+    std::cout << "[State_WBC_New] Enter dance. frames="
+              << _start_refer_idx << "->" << _end_refer_idx
+              << ", auto return to Loco enabled." << std::endl;
 }
 
 void State_WBC_New::run()
 {
+    if (_returning_to_loco)
+    {
+        _run_return_to_loco_blend();
+        return;
+    }
+
     if (!_pause_flag)
         _refer_idx++;
     if (_refer_idx >= (unsigned int)_end_refer_idx)
         _refer_idx = _end_refer_idx;
+
+    if (!_pause_flag && _refer_idx >= static_cast<unsigned int>(_end_refer_idx))
+    {
+        _begin_return_to_loco("Dance motion reached final frame " + std::to_string(_refer_idx) + "/" + std::to_string(_end_refer_idx));
+        _run_return_to_loco_blend();
+        return;
+    }
+
     _observations_compute();
     _action_compute();
     _debug_target_delta_max = 0.0f;
@@ -358,20 +456,44 @@ void State_WBC_New::_debug_print()
     }
 }
 
-void State_WBC_New::exit() { std::cout << "[State_WBC_New] Exit." << std::endl; }
+void State_WBC_New::exit()
+{
+    if (_return_to_loco_ready)
+        std::cout << "[State_WBC_New] Exit after completed dance and smooth Loco handoff." << std::endl;
+    else
+        std::cout << "[State_WBC_New] Exit." << std::endl;
+}
 
 FSMStateName State_WBC_New::checkChange()
 {
-    if (_lowState->userCmd == UserCommand::L2_B || _terminate_flag)
+    if (_lowState->userCmd == UserCommand::SELECT)
+    {
+        throw std::runtime_error("exit..");
         return FSMStateName::PASSIVE;
+    }
+    if (_return_to_loco_ready)
+        return FSMStateName::LOCO;
+    if (_lowState->userCmd == UserCommand::R2_B)
+    {
+        _begin_return_to_loco("Manual return-to-Loco command received");
+        return FSMStateName::WBC;
+    }
+    if (_lowState->userCmd == UserCommand::L2_B || _terminate_flag)
+    {
+        if (_terminate_flag)
+            std::cout << "\n[State_WBC_New] Safety terminate. Switching to Passive." << std::endl;
+        return FSMStateName::PASSIVE;
+    }
     if (_lowState->userCmd == UserCommand::R2 && !_pause_flag)
     {
         _pause_flag = true;
+        std::cout << "\n[State_WBC_New] Pause at frame " << _refer_idx << "." << std::endl;
         return FSMStateName::WBC;
     }
     if (_lowState->userCmd == UserCommand::R1 && _pause_flag)
     {
         _pause_flag = false;
+        std::cout << "\n[State_WBC_New] Resume from frame " << _refer_idx << "." << std::endl;
         return FSMStateName::WBC;
     }
     return FSMStateName::WBC;
