@@ -100,7 +100,7 @@ IOSDK::IOSDK()
                     break;
                 case '2':
                     userCmd_ = UserCommand::R2_A;
-                    std::cout << "\n[Keyboard] 2 -> LOCO MODE (maps to R2_A)" << std::endl;
+                    std::cout << "\n[Keyboard] 2 -> AMP MODE (maps to R2_A)" << std::endl;
                     break;
                 case '3':
                     userCmd_ = UserCommand::R1_UP;
@@ -134,7 +134,7 @@ IOSDK::IOSDK()
                     break;
                 case 'b':
                     userCmd_ = UserCommand::R2_B;
-                    std::cout << "\n[Keyboard] b -> BACK TO LOCO FROM AMP (maps to R2_B)" << std::endl;
+                    std::cout << "\n[Keyboard] b -> CONTEXT RETURN (maps to R2_B)" << std::endl;
                     break;
 
                 // ================= Speed profile switching =================

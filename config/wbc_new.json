@@ -7,7 +7,5 @@
     "safe_projgravity_threshold": 0.6,
     "debug": true,
     "debug_interval": 50,
-    "return_to_loco_blend_frames": 100,
-    "return_to_loco_start_before_end_frames": 100,
-    "return_to_loco_max_gravity_error": 0.45
+    "return_to_amp_blend_frames": 20
 }

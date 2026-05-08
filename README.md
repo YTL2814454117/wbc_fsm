@@ -151,7 +151,7 @@ This project currently uses terminal keyboard input instead of the Unitree wirel
 
 - **0**: Exit program (`SELECT`)
 - **1**: Enter fixed-stand / position-control preparation state (`START`)
-- **2**: Enter Loco mode (`R2_A`)
+- **2**: Enter AMP mode (`R2_A`)
 - **3**: Enter WBC mode (`R1_UP`)
 - **4**: Enter WBC Left state (`R1_LEFT`)
 - **5**: Enter WBC Right state (`R1_RIGHT`)
@@ -172,7 +172,7 @@ This project currently uses terminal keyboard input instead of the Unitree wirel
 1. After starting the program, the robot enters **Damping Protection Mode**
 2. Press keyboard **1** to enter fixed-stand / position-control preparation state
 3. Suspend the robot (In simulation, `enable_elastic_band` is enabled by default. Press keyboard **9** to release the band, press again to re-suspend. Press **8** to lower, **7** to raise)
-4. Press keyboard **2** to enter Loco(AMP) Mode, then release the suspension band
+4. Press keyboard **2** to enter AMP Mode, then release the suspension band
    - Press **+ / =** to enter high-speed mode (running)
    - Press **-** to enter low-speed mode (walking)
 5. Press keyboard **3** to enter WBC (Whole-Body Control) Mode

@@ -47,9 +47,9 @@ private:
     void _observations_compute();
     void _action_compute();
     void _debug_print();
-    void _begin_return_to_loco(const std::string &reason);
-    void _run_return_to_loco_blend();
-    float _loco_stand_target_q(int motor_id) const;
+    void _begin_return_to_amp(const std::string &reason);
+    void _run_return_to_amp_blend();
+    float _amp_stand_target_q(int motor_id) const;
     float _base_projected_gravity_error() const;
     std::vector<float> _current_torso_quat() const;
     std::vector<float> _reference_root_quat(int frame_idx) const;
@@ -106,13 +106,10 @@ private:
     float _anchor_terminate_thresh = 0.5f;
     bool _terminate_flag = false;
     bool _pause_curr_flag = false;
-    bool _returning_to_loco = false;
-    bool _return_to_loco_ready = false;
-    int _return_to_loco_blend_frames = 100;
-    int _return_to_loco_start_before_end_frames = 100;
-    float _return_to_loco_max_gravity_error = 0.45f;
+    bool _returning_to_amp = false;
+    bool _return_to_amp_ready = false;
+    int _return_to_amp_blend_frames = 20;
     unsigned int _return_blend_step = 0;
-    unsigned int _return_hold_counter = 0;
     float _return_blend_start_q[NUM_DOF];
     bool _debug_enabled = true;
     int _debug_interval = 50;
@@ -141,13 +138,27 @@ private:
         0.00258, -0.00029, 0.605, 0.596, 0.00818, 0.00322, 0.00293, -0.00339, -0.00955,
         -0.00715};
 
-    // Loco policy default stand pose, indexed by physical motor id. This is the handoff target.
-    const float _loco_default_motor_pos[NUM_DOF] = {
-        -0.2, 0.0, 0.0, 0.42, -0.23, 0.0,
-        -0.2, 0.0, 0.0, 0.42, -0.23, 0.0,
+    // AMP policy default stand/recovery pose, indexed by physical motor id. This is the handoff target.
+    const float _amp_default_motor_pos[NUM_DOF] = {
+        -0.312, 0.0, 0.0, 0.669, -0.363, 0.0,
+        -0.312, 0.0, 0.0, 0.669, -0.363, 0.0,
         0.0, 0.0, 0.0,
-        0.35, 0.18, 0.0, 0.87, 0.0, 0.0, 0.0,
-        0.35, -0.18, 0.0, 0.87, 0.0, 0.0, 0.0};
+        0.2, 0.2, 0.0, 0.6, 0.0, 0.0, 0.0,
+        0.2, -0.2, 0.0, 0.6, 0.0, 0.0, 0.0};
+
+    const double _amp_handoff_Kps[NUM_DOF] = {
+        STIFFNESS_7520_22, STIFFNESS_7520_22, STIFFNESS_7520_14, STIFFNESS_7520_22, 2.0 * STIFFNESS_5020, 2.0 * STIFFNESS_5020,
+        STIFFNESS_7520_22, STIFFNESS_7520_22, STIFFNESS_7520_14, STIFFNESS_7520_22, 2.0 * STIFFNESS_5020, 2.0 * STIFFNESS_5020,
+        STIFFNESS_7520_14, 2.0 * STIFFNESS_5020, 2.0 * STIFFNESS_5020,
+        STIFFNESS_5020, STIFFNESS_5020, STIFFNESS_5020, STIFFNESS_5020, STIFFNESS_5020, STIFFNESS_5010_16, STIFFNESS_5010_16,
+        STIFFNESS_5020, STIFFNESS_5020, STIFFNESS_5020, STIFFNESS_5020, STIFFNESS_5020, STIFFNESS_5010_16, STIFFNESS_5010_16};
+
+    const double _amp_handoff_Kds[NUM_DOF] = {
+        DAMPING_7520_22, DAMPING_7520_22, DAMPING_7520_14, DAMPING_7520_22, 2.0 * DAMPING_5020, 2.0 * DAMPING_5020,
+        DAMPING_7520_22, DAMPING_7520_22, DAMPING_7520_14, DAMPING_7520_22, 2.0 * DAMPING_5020, 2.0 * DAMPING_5020,
+        DAMPING_7520_14, 2.0 * DAMPING_5020, 2.0 * DAMPING_5020,
+        DAMPING_5020, DAMPING_5020, DAMPING_5020, DAMPING_5020, DAMPING_5020, DAMPING_5010_16, DAMPING_5010_16,
+        DAMPING_5020, DAMPING_5020, DAMPING_5020, DAMPING_5020, DAMPING_5020, DAMPING_5010_16, DAMPING_5010_16};
 
     // 3. 动作缩放因子 (Action Scale) - 对应模型输出顺序
     const float _action_scale[NUM_DOF] = {
