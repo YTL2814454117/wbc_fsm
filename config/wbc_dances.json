@@ -13,6 +13,19 @@
             "debug": true,
             "debug_interval": 50,
             "return_to_amp_blend_frames": 20
+        },
+        {
+            "id": "gangnam_style",
+            "name": "Gangnam Style",
+            "model_path": "model/wbc/gangnam_style.onnx",
+            "motion_path": "motion_data/lafan1/gangnam_style/converted_bin",
+            "start_idx": 0,
+            "end_idx": -1,
+            "pause_idx": 350,
+            "safe_projgravity_threshold": 0.6,
+            "debug": true,
+            "debug_interval": 50,
+            "return_to_amp_blend_frames": 20
         }
     ]
 }
