@@ -66,7 +66,7 @@ private:
     bool _high_speed_mode = false;
     bool _auto_loco_after_enter_requested = false;
     bool _auto_loco_active = false;
-    double _auto_loco_delay = 3.0;
+    double _auto_loco_delay = 1.0;
     double _auto_loco_elapsed = 0.0;
     int _auto_loco_last_print_second = -1;
 
