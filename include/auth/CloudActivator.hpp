@@ -107,7 +107,10 @@ public:
     {
         std::string local_mac = getMacAddress(iface);
         if (local_mac.empty())
+        {
+            std::cerr << "[Fatal] Failed to get MAC address from interface: " << iface << std::endl;
             return false;
+        }
 
         std::ifstream lic_file(_lic_path);
         if (!lic_file.is_open())
@@ -141,6 +144,8 @@ public:
         json payload = json::parse(payload_str);
         std::string bind_mac = payload["mac"];
         long expiry_timestamp = payload["expiry"];
+        std::cout << "[Info] License MAC check. local(" << iface << ")=" << local_mac
+                  << ", license=" << bind_mac << std::endl;
 
         // 校验 MAC 地址是否匹配本机
         // 宇树机器人的 MAC 有时因为网卡驱动会变成全大写或全小写，建议统一转大写比较
