@@ -256,7 +256,7 @@ private:
         bool result = false;
         if (EVP_DigestVerifyInit(ctx, nullptr, EVP_sha256(), nullptr, pubkey) > 0)
         {
-            if (EVP_DigestVerifyUpdate(ctx, payload.c_str(), payload.size()) > 0)
+            if (EVP_DigestUpdate(ctx, payload.c_str(), payload.size()) > 0)
             {
                 if (EVP_DigestVerifyFinal(ctx, signature.data(), signature.size()) == 1)
                 {
