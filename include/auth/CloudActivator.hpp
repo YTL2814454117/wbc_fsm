@@ -111,6 +111,14 @@ public:
             std::cerr << "[Fatal] Failed to get MAC address from interface: " << iface << std::endl;
             return false;
         }
+        if (iface == "lo" || toUpperCase(local_mac) == "00:00:00:00:00:00")
+        {
+            std::cerr << "[Fatal] Invalid license binding interface: " << iface
+                      << ", MAC=" << local_mac
+                      << ". Do not use loopback; use a real stable network interface such as eth0 or wlp3s0."
+                      << std::endl;
+            return false;
+        }
 
         std::ifstream lic_file(_lic_path);
         if (!lic_file.is_open())

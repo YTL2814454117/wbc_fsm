@@ -79,20 +79,35 @@ make -j4
 - 检查 license 是否过期。
 - 校验失败时直接退出，不启动机器人控制逻辑。
 
-默认路径：
+默认配置文件位于：
 
 ```text
-证书: ../qianer_auth_project/keys/ZJUDES.crt
-license: ./license/qianer_license.lic
-网卡: eth0
+config/qianer_auth.json
 ```
 
-也可以用环境变量覆盖：
+当前工程启动时会先读取该配置文件，再读取环境变量覆盖值。这样 Ubuntu 笔记本测试和真实机器人部署不需要改代码，只需要改配置文件里的网卡名和路径。
+
+配置示例：
+
+```text
+{
+  "cert_path": "../qianer_auth_project/keys/ZJUDES.crt",
+  "license_path": "license/qianer_license.lic",
+  "iface": "wlp3s0"
+}
+```
+
+字段说明：
+- `cert_path`：验证 license 签名用的证书路径。相对路径会按 `unitree_g1` 工程根目录解析。
+- `license_path`：本地 license 文件路径。相对路径会按 `unitree_g1` 工程根目录解析。
+- `iface`：用于读取 MAC 地址并和 license 绑定 MAC 对比的网卡名。Ubuntu 笔记本可用 `wlp3s0`，真实机器人通常用 `eth0`，不要使用 `lo`。
+
+也可以临时用环境变量覆盖配置文件，优先级高于 `config/qianer_auth.json`：
 
 ```bash
 export QIANER_AUTH_CERT_PATH=/opt/qianer-auth/keys/ZJUDES.crt
 export QIANER_AUTH_LICENSE_PATH=/home/unitree/unitree_g1/license/qianer_license.lic
-export QIANER_AUTH_IFACE=eth0
+export QIANER_AUTH_IFACE=wlp3s0
 ```
 
 如果开启宏，需要 Ubuntu 安装额外依赖：
@@ -121,10 +136,10 @@ sudo apt install -y libssl-dev libcurl4-openssl-dev
 2. 在机器人或测试机上查看用于绑定的 MAC 地址：
 
    ```bash
-   ip link show eth0
+   ip link show wlp3s0
    ```
 
-   如果实际使用的是其他网卡，例如 `enp3s0` 或 `wlan0`，后续把 `eth0` 替换成对应网卡名。
+   如果实际使用的是其他网卡，例如 `enp3s0`、`wlan0` 或真实机器人上的 `eth0`，后续把 `wlp3s0` 替换成对应网卡名。不要用 `lo`，因为 `00:00:00:00:00:00` 不是可用于授权绑定的真实硬件指纹。
 
 3. 请求激活并保存 license：
 
@@ -155,10 +170,28 @@ sudo apt install -y libssl-dev libcurl4-openssl-dev
    make -j4
    ```
 
-5. 运行控制器：
+5. 确认控制器 license 配置：
 
    ```bash
-   export QIANER_AUTH_IFACE=eth0
+   cd /path/to/unitree/unitree_g1
+   cat config/qianer_auth.json
+   ```
+
+   Ubuntu 笔记本本地测试时，`iface` 应与第 2 步查看 MAC 的网卡一致，例如：
+
+   ```json
+   {
+     "cert_path": "../qianer_auth_project/keys/ZJUDES.crt",
+     "license_path": "license/qianer_license.lic",
+     "iface": "wlp3s0"
+   }
+   ```
+
+   部署到真实机器人时，把 `iface` 改成机器人实际用于授权绑定的稳定网卡，例如 `eth0`。
+
+6. 运行控制器：
+
+   ```bash
    ./wbc_fsm
    ```
 

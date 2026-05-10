@@ -1,0 +1,5 @@
+{
+  "cert_path": "../qianer_auth_project/keys/ZJUDES.crt",
+  "license_path": "license/qianer_license.lic",
+  "iface": "wlp3s0"
+}

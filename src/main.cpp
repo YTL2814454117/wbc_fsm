@@ -27,6 +27,7 @@
 
 #if ENABLE_QIANER_LICENSE_AUTH
 #include "auth/CloudActivator.hpp"
+#include <nlohmann/json.hpp>
 #endif
 
 bool running = true;
@@ -49,6 +50,13 @@ void setProcessScheduler() // 进程实时调度设置
 }
 
 #if ENABLE_QIANER_LICENSE_AUTH
+struct QianerAuthConfig
+{
+    std::string cert_path = std::string(PROJECT_ROOT_DIR) + "/../qianer_auth_project/keys/ZJUDES.crt";
+    std::string license_path = std::string(PROJECT_ROOT_DIR) + "/license/qianer_license.lic";
+    std::string iface = "eth0";
+};
+
 std::string getEnvOrDefault(const char *name, const std::string &default_value)
 {
     const char *value = std::getenv(name);
@@ -57,23 +65,62 @@ std::string getEnvOrDefault(const char *name, const std::string &default_value)
     return std::string(value);
 }
 
+std::string resolveProjectPath(const std::string &path)
+{
+    if (path.empty())
+        return path;
+    if (path.front() == '/')
+        return path;
+    return std::string(PROJECT_ROOT_DIR) + "/" + path;
+}
+
+QianerAuthConfig loadQianerAuthConfig()
+{
+    QianerAuthConfig config;
+    const std::string config_path = std::string(PROJECT_ROOT_DIR) + "/config/qianer_auth.json";
+    std::ifstream file(config_path);
+    if (file.is_open())
+    {
+        try
+        {
+            nlohmann::json j;
+            file >> j;
+            if (j.contains("cert_path") && j["cert_path"].is_string())
+                config.cert_path = resolveProjectPath(j["cert_path"].get<std::string>());
+            if (j.contains("license_path") && j["license_path"].is_string())
+                config.license_path = resolveProjectPath(j["license_path"].get<std::string>());
+            if (j.contains("iface") && j["iface"].is_string())
+                config.iface = j["iface"].get<std::string>();
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << "[QianerAuth] Failed to parse " << config_path
+                      << ": " << e.what() << ". Using built-in defaults." << std::endl;
+        }
+    }
+    else
+    {
+        std::cout << "[QianerAuth] Config file not found: " << config_path
+                  << ". Using built-in defaults." << std::endl;
+    }
+
+    config.cert_path = resolveProjectPath(getEnvOrDefault("QIANER_AUTH_CERT_PATH", config.cert_path));
+    config.license_path = resolveProjectPath(getEnvOrDefault("QIANER_AUTH_LICENSE_PATH", config.license_path));
+    config.iface = getEnvOrDefault("QIANER_AUTH_IFACE", config.iface);
+    return config;
+}
+
 bool verifyQianerLicense()
 {
-    const std::string cert_path = getEnvOrDefault(
-        "QIANER_AUTH_CERT_PATH",
-        std::string(PROJECT_ROOT_DIR) + "/../qianer_auth_project/keys/ZJUDES.crt");
-    const std::string license_path = getEnvOrDefault(
-        "QIANER_AUTH_LICENSE_PATH",
-        std::string(PROJECT_ROOT_DIR) + "/license/qianer_license.lic");
-    const std::string iface = getEnvOrDefault("QIANER_AUTH_IFACE", "eth0");
+    const QianerAuthConfig config = loadQianerAuthConfig();
 
     std::cout << "[QianerAuth] License verification is enabled." << std::endl;
-    std::cout << "[QianerAuth] cert=" << cert_path
-              << " license=" << license_path
-              << " iface=" << iface << std::endl;
+    std::cout << "[QianerAuth] cert=" << config.cert_path
+              << " license=" << config.license_path
+              << " iface=" << config.iface << std::endl;
 
-    CloudActivator activator("", cert_path, license_path);
-    if (!activator.verifyLocalLicense(iface))
+    CloudActivator activator("", config.cert_path, config.license_path);
+    if (!activator.verifyLocalLicense(config.iface))
     {
         std::cerr << "[QianerAuth] License verification failed. Controller startup blocked." << std::endl;
         return false;
