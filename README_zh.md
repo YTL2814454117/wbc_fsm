@@ -50,6 +50,127 @@ cmake ..
 make -j4
 ```
 
+### 可选：开启千二科技 license 验证
+
+默认编译不会强制校验 license，便于开发调试：
+
+```bash
+cmake ..
+```
+
+如需在程序启动前强制校验本地授权文件，编译时打开宏：
+
+```bash
+cmake .. -DENABLE_QIANER_LICENSE_AUTH=ON
+make -j4
+```
+
+关闭该功能：
+
+```bash
+cmake .. -DENABLE_QIANER_LICENSE_AUTH=OFF
+make -j4
+```
+
+开启后，`wbc_fsm` 启动时会先做本地离线校验：
+
+- 使用 `ZJUDES.crt` 验证 `.lic` 文件中的 RSA 签名。
+- 检查 license payload 中的 MAC 是否等于当前机器人网卡 MAC。
+- 检查 license 是否过期。
+- 校验失败时直接退出，不启动机器人控制逻辑。
+
+默认路径：
+
+```text
+证书: ../qianer_auth_project/keys/ZJUDES.crt
+license: ./license/qianer_license.lic
+网卡: eth0
+```
+
+也可以用环境变量覆盖：
+
+```bash
+export QIANER_AUTH_CERT_PATH=/opt/qianer-auth/keys/ZJUDES.crt
+export QIANER_AUTH_LICENSE_PATH=/home/unitree/unitree_g1/license/qianer_license.lic
+export QIANER_AUTH_IFACE=eth0
+```
+
+如果开启宏，需要 Ubuntu 安装额外依赖：
+
+```bash
+sudo apt update
+sudo apt install -y libssl-dev libcurl4-openssl-dev
+```
+
+### Ubuntu 本地授权测试流程
+
+以下流程适合在 Ubuntu 上用自己的电脑先模拟云端授权服务器。
+
+1. 启动授权服务：
+
+   ```bash
+   cd /path/to/unitree/qianer_auth_project
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   python scripts/init_db.py
+   python scripts/create_activation_key.py --label ubuntu-test --valid-days 30 --max-uses 1
+   uvicorn api.main:app --host 0.0.0.0 --port 8000
+   ```
+
+2. 在机器人或测试机上查看用于绑定的 MAC 地址：
+
+   ```bash
+   ip link show eth0
+   ```
+
+   如果实际使用的是其他网卡，例如 `enp3s0` 或 `wlan0`，后续把 `eth0` 替换成对应网卡名。
+
+3. 请求激活并保存 license：
+
+   ```bash
+   cd /path/to/unitree/unitree_g1
+   mkdir -p license
+
+   curl -X POST http://127.0.0.1:8000/v1/activate \
+     -H "Content-Type: application/json" \
+     -d '{"mac_address":"AA:BB:CC:DD:EE:FF","activation_key":"QE-xxxx"}' \
+     | python3 -c 'import sys,json; print(json.dumps(json.load(sys.stdin)["license_content"], indent=4))' \
+     > license/qianer_license.lic
+   ```
+
+   其中：
+
+   - `AA:BB:CC:DD:EE:FF` 替换为第 2 步查到的 MAC 地址。
+   - `QE-xxxx` 替换为第 1 步生成的激活码。
+   - 如果授权服务在另一台电脑上，把 `127.0.0.1` 替换为授权服务电脑的局域网 IP。
+
+4. 编译开启 license 验证：
+
+   ```bash
+   cd /path/to/unitree/unitree_g1
+   mkdir -p build
+   cd build
+   cmake .. -DENABLE_QIANER_LICENSE_AUTH=ON
+   make -j4
+   ```
+
+5. 运行控制器：
+
+   ```bash
+   export QIANER_AUTH_IFACE=eth0
+   ./wbc_fsm
+   ```
+
+   正常通过时会看到类似输出：
+
+   ```text
+   [QianerAuth] License verification is enabled.
+   [QianerAuth] License verification passed.
+   ```
+
+   如果 license 文件不存在、签名不匹配、MAC 不一致或授权过期，程序会输出失败原因并退出。
+
 ## 配置
 
 配置文件位于 `config/` 目录：

@@ -43,6 +43,9 @@ Thumbs.db
 # Logs
 *.log
 
+# License files
+license/*.lic
+
 # ONNX Runtime libraries (users need to download separately)
 onnxruntime-linux-x64-1.22.0/
 onnxruntime-linux-aarch64-1.22.0/

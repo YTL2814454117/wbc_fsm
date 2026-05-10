@@ -2,6 +2,7 @@
 #include <fstream>
 #include <string>
 #include <sstream>
+#include <cstdlib>
 #include <unistd.h>
 #include <csignal>
 #include <sched.h>
@@ -24,6 +25,10 @@
 #include "control/CtrlComponents.h"
 #include "interface/IOSDK.h"
 
+#if ENABLE_QIANER_LICENSE_AUTH
+#include "auth/CloudActivator.hpp"
+#endif
+
 bool running = true;
 
 void ShutDown(int sig)
@@ -43,11 +48,57 @@ void setProcessScheduler() // 进程实时调度设置
     }
 }
 
+#if ENABLE_QIANER_LICENSE_AUTH
+std::string getEnvOrDefault(const char *name, const std::string &default_value)
+{
+    const char *value = std::getenv(name);
+    if (value == nullptr || std::string(value).empty())
+        return default_value;
+    return std::string(value);
+}
+
+bool verifyQianerLicense()
+{
+    const std::string cert_path = getEnvOrDefault(
+        "QIANER_AUTH_CERT_PATH",
+        std::string(PROJECT_ROOT_DIR) + "/../qianer_auth_project/keys/ZJUDES.crt");
+    const std::string license_path = getEnvOrDefault(
+        "QIANER_AUTH_LICENSE_PATH",
+        std::string(PROJECT_ROOT_DIR) + "/license/qianer_license.lic");
+    const std::string iface = getEnvOrDefault("QIANER_AUTH_IFACE", "eth0");
+
+    std::cout << "[QianerAuth] License verification is enabled." << std::endl;
+    std::cout << "[QianerAuth] cert=" << cert_path
+              << " license=" << license_path
+              << " iface=" << iface << std::endl;
+
+    CloudActivator activator("", cert_path, license_path);
+    if (!activator.verifyLocalLicense(iface))
+    {
+        std::cerr << "[QianerAuth] License verification failed. Controller startup blocked." << std::endl;
+        return false;
+    }
+
+    std::cout << "[QianerAuth] License verification passed." << std::endl;
+    return true;
+}
+#endif
+
 int main(int argc, char **argv)
 {
 
     setProcessScheduler();
     std::cout << std::fixed << std::setprecision(3); // 设置终端打印浮点数的精度为小数点后3位
+
+#if ENABLE_QIANER_LICENSE_AUTH
+    if (!verifyQianerLicense())
+    {
+        return 1;
+    }
+#else
+    std::cout << "[QianerAuth] License verification is disabled by build macro." << std::endl;
+#endif
+
     IOInterface *ioInter;                            // 接口类
     CtrlPlatform ctrlPlat;                           // 定义控制平台
 

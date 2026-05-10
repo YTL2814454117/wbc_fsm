@@ -6,6 +6,8 @@
 #include <fstream>
 #include <chrono>
 #include <cstring>
+#include <cctype>
+#include <cstdio>
 #include <unistd.h>
 #include <net/if.h>
 #include <sys/ioctl.h>
@@ -200,7 +202,7 @@ private:
     std::string toUpperCase(std::string s)
     {
         for (char &c : s)
-            c = toupper(c);
+            c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
         return s;
     }
 
