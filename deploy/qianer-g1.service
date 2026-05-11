@@ -1,0 +1,20 @@
+[Unit]
+Description=Qianer Unitree G1 Controller
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/qianer/unitree_g1/app
+Environment=INSTALL_BASE=/opt/qianer/unitree_g1
+Environment=QIANER_G1_ROOT=/opt/qianer/unitree_g1/app
+Environment=LD_LIBRARY_PATH=/opt/qianer/unitree_g1/app/lib:/opt/qianer/unitree_g1/app/lib/onnxruntime:/usr/local/lib
+ExecStart=/opt/qianer/unitree_g1/scripts/start.sh
+ExecStop=/opt/qianer/unitree_g1/scripts/stop.sh
+Restart=on-failure
+RestartSec=2
+KillSignal=SIGINT
+TimeoutStopSec=8
+
+[Install]
+WantedBy=multi-user.target

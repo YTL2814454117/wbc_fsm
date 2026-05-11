@@ -1,6 +1,7 @@
 #include <iostream>
 #include "FSM/State_Amp.h"
 #include "common/read_traj.h"
+#include "common/RuntimePaths.h"
 #include <fstream>
 #include <algorithm>
 #include <nlohmann/json.hpp>
@@ -10,7 +11,7 @@ using json = nlohmann::json;
 State_AMP::State_AMP(CtrlComponents *ctrlComp)
     : FSMState(ctrlComp, FSMStateName::AMP, "amp"){
 
-    std::string config_path = std::string(PROJECT_ROOT_DIR) + "/config/amp.json";
+    std::string config_path = RuntimePaths::resolve("config/amp.json");
     std::ifstream config_file(config_path);
     if (!config_file.is_open()) {
         std::cerr << "[ERROR] Failed to open config file: " << config_path << std::endl;
@@ -20,8 +21,7 @@ State_AMP::State_AMP(CtrlComponents *ctrlComp)
     try
     {
         json config = json::parse(config_file);
-        std::string base_path = std::string(PROJECT_ROOT_DIR) + "/";
-        _model_path = base_path + config["model_path"].get<std::string>();
+        _model_path = RuntimePaths::resolve(config["model_path"].get<std::string>());
         _anchor_terminate_thresh = config["safe_projgravity_threshold"].get<float>();
 
         this->_vxLim = {config["vx_limit_min"].get<float>(), config["vx_limit_max"].get<float>()};

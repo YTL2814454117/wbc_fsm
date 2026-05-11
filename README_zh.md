@@ -204,6 +204,104 @@ sudo apt install -y libssl-dev libcurl4-openssl-dev
 
    如果 license 文件不存在、签名不匹配、MAC 不一致或授权过期，程序会输出失败原因并退出。
 
+### U 盘部署与升级
+
+当前工程提供 `deploy/` 目录，用于生成 U 盘升级包并在机器人端安装、升级和回滚：
+
+```text
+deploy/
+├── install.sh
+├── upgrade.sh
+├── rollback.sh
+├── start.sh
+├── stop.sh
+├── qianer-g1.service
+└── package_release.sh
+```
+
+机器人端默认安装目录：
+
+```text
+/opt/qianer/unitree_g1/
+├── app -> releases/<version>/
+├── releases/
+├── shared/
+│   ├── config/
+│   ├── license/
+│   ├── keys/
+│   └── logs/
+└── scripts/
+```
+
+其中 `shared/` 是客户现场数据目录，升级时不会覆盖已有配置和 license：
+- `shared/config/`：保存 `qianer_auth.json`、`wbc_dances.json` 等现场配置。
+- `shared/license/`：保存 `qianer_license.lic`。
+- `shared/keys/`：保存 `ZJUDES.crt` 公钥证书。
+- `shared/logs/`：保存运行日志。
+
+打包前先在目标平台完成编译，例如真实机器人 aarch64 环境：
+
+```bash
+cd /path/to/unitree_g1
+mkdir -p build
+cd build
+cmake .. -DENABLE_QIANER_LICENSE_AUTH=ON
+make -j4
+```
+
+生成 U 盘升级包：
+
+```bash
+cd /path/to/unitree_g1
+DEPLOY_IFACE=eth0 bash deploy/package_release.sh
+```
+
+生成结果位于：
+
+```text
+dist/
+├── qianer_g1_<version>.tar.gz
+├── install.sh
+└── upgrade.sh
+```
+
+把 `dist/` 下的文件复制到 U 盘。首次安装时，在机器人上执行：
+
+```bash
+sudo bash /media/unitree/<USB>/install.sh /media/unitree/<USB>/qianer_g1_<version>.tar.gz
+```
+
+后续升级时执行：
+
+```bash
+sudo bash /media/unitree/<USB>/upgrade.sh /media/unitree/<USB>/qianer_g1_<version>.tar.gz
+```
+
+如果机器人还没有 `shared/license/qianer_license.lic`，安装脚本会完成文件部署和 systemd 服务安装，但不会启动控制器。完成授权激活并保存 license 后，再启动：
+
+```bash
+sudo systemctl start qianer-g1.service
+```
+
+查看状态和日志：
+
+```bash
+sudo systemctl status qianer-g1.service
+journalctl -u qianer-g1.service -f
+```
+
+手动回滚到上一版本：
+
+```bash
+sudo bash /opt/qianer/unitree_g1/scripts/rollback.sh
+```
+
+如果需要只安装文件、不自动启动服务，可在安装或升级前设置：
+
+```bash
+sudo QIANER_NO_AUTO_START=1 bash /media/unitree/<USB>/upgrade.sh /media/unitree/<USB>/qianer_g1_<version>.tar.gz
+```
+
 ## 配置
 
 配置文件位于 `config/` 目录：

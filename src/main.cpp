@@ -24,6 +24,7 @@
 #include "control/ControlFrame.h"
 #include "control/CtrlComponents.h"
 #include "interface/IOSDK.h"
+#include "common/RuntimePaths.h"
 
 #if ENABLE_QIANER_LICENSE_AUTH
 #include "auth/CloudActivator.hpp"
@@ -52,8 +53,8 @@ void setProcessScheduler() // 进程实时调度设置
 #if ENABLE_QIANER_LICENSE_AUTH
 struct QianerAuthConfig
 {
-    std::string cert_path = std::string(PROJECT_ROOT_DIR) + "/../qianer_auth_project/keys/ZJUDES.crt";
-    std::string license_path = std::string(PROJECT_ROOT_DIR) + "/license/qianer_license.lic";
+    std::string cert_path = RuntimePaths::resolve("../qianer_auth_project/keys/ZJUDES.crt");
+    std::string license_path = RuntimePaths::resolve("license/qianer_license.lic");
     std::string iface = "eth0";
 };
 
@@ -65,19 +66,10 @@ std::string getEnvOrDefault(const char *name, const std::string &default_value)
     return std::string(value);
 }
 
-std::string resolveProjectPath(const std::string &path)
-{
-    if (path.empty())
-        return path;
-    if (path.front() == '/')
-        return path;
-    return std::string(PROJECT_ROOT_DIR) + "/" + path;
-}
-
 QianerAuthConfig loadQianerAuthConfig()
 {
     QianerAuthConfig config;
-    const std::string config_path = std::string(PROJECT_ROOT_DIR) + "/config/qianer_auth.json";
+    const std::string config_path = RuntimePaths::resolve("config/qianer_auth.json");
     std::ifstream file(config_path);
     if (file.is_open())
     {
@@ -86,9 +78,9 @@ QianerAuthConfig loadQianerAuthConfig()
             nlohmann::json j;
             file >> j;
             if (j.contains("cert_path") && j["cert_path"].is_string())
-                config.cert_path = resolveProjectPath(j["cert_path"].get<std::string>());
+                config.cert_path = RuntimePaths::resolve(j["cert_path"].get<std::string>());
             if (j.contains("license_path") && j["license_path"].is_string())
-                config.license_path = resolveProjectPath(j["license_path"].get<std::string>());
+                config.license_path = RuntimePaths::resolve(j["license_path"].get<std::string>());
             if (j.contains("iface") && j["iface"].is_string())
                 config.iface = j["iface"].get<std::string>();
         }
@@ -104,8 +96,8 @@ QianerAuthConfig loadQianerAuthConfig()
                   << ". Using built-in defaults." << std::endl;
     }
 
-    config.cert_path = resolveProjectPath(getEnvOrDefault("QIANER_AUTH_CERT_PATH", config.cert_path));
-    config.license_path = resolveProjectPath(getEnvOrDefault("QIANER_AUTH_LICENSE_PATH", config.license_path));
+    config.cert_path = RuntimePaths::resolve(getEnvOrDefault("QIANER_AUTH_CERT_PATH", config.cert_path));
+    config.license_path = RuntimePaths::resolve(getEnvOrDefault("QIANER_AUTH_LICENSE_PATH", config.license_path));
     config.iface = getEnvOrDefault("QIANER_AUTH_IFACE", config.iface);
     return config;
 }

@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include "FSM/State_Passive.h"
+#include "common/RuntimePaths.h"
 
 using json = nlohmann::json;
 
@@ -8,7 +9,7 @@ State_Passive::State_Passive(CtrlComponents *ctrlComp)
     : FSMState(ctrlComp, FSMStateName::PASSIVE, "passive")
 {
 
-    std::string config_path = std::string(PROJECT_ROOT_DIR) + "/config/passive.json";
+    std::string config_path = RuntimePaths::resolve("config/passive.json");
     std::ifstream config_file(config_path);
     if (!config_file.is_open())
     {

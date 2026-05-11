@@ -1,6 +1,7 @@
 
 #include <iostream>
 #include "FSM/State_Loco.h"
+#include "common/RuntimePaths.h"
 
 #include <fstream>
 #include <algorithm>
@@ -11,7 +12,7 @@ using json = nlohmann::json;
 State_Loco::State_Loco(CtrlComponents *ctrlComp)
     : FSMState(ctrlComp, FSMStateName::LOCO, "rl")
 {
-    std::string config_path = std::string(PROJECT_ROOT_DIR) + "/config/loco.json";
+    std::string config_path = RuntimePaths::resolve("config/loco.json");
     std::ifstream config_file(config_path);
     if (!config_file.is_open())
     {
@@ -22,8 +23,7 @@ State_Loco::State_Loco(CtrlComponents *ctrlComp)
     try
     {
         json config = json::parse(config_file);
-        std::string base_path = std::string(PROJECT_ROOT_DIR) + "/";
-        _model_path = base_path + config["model_path"].get<std::string>();
+        _model_path = RuntimePaths::resolve(config["model_path"].get<std::string>());
         _anchor_terminate_thresh = config["safe_projgravity_threshold"].get<float>();
 
         this->_vxLim << config["vx_limit_min"].get<float>(), config["vx_limit_max"].get<float>();

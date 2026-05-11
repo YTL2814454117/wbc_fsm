@@ -1,6 +1,7 @@
 #include <iostream>
 #include "FSM/State_WBC.h"
 #include "common/read_traj.h"
+#include "common/RuntimePaths.h"
 #include <fstream>
 #include <algorithm>
 #include <nlohmann/json.hpp>
@@ -12,7 +13,7 @@ State_WBC::State_WBC(CtrlComponents *ctrlComp)
     : FSMState(ctrlComp, FSMStateName::WBC, "wbc")
 {
 
-    std::string config_path = std::string(PROJECT_ROOT_DIR) + "/config/wbc.json";
+    std::string config_path = RuntimePaths::resolve("config/wbc.json");
     std::ifstream config_file(config_path);
     if (!config_file.is_open())
     {
@@ -23,9 +24,8 @@ State_WBC::State_WBC(CtrlComponents *ctrlComp)
     try
     {
         json config = json::parse(config_file);
-        std::string base_path = std::string(PROJECT_ROOT_DIR) + "/";
-        _model_path = base_path + config["model_path"].get<std::string>();
-        _folder_path = base_path + config["motion_path"].get<std::string>();
+        _model_path = RuntimePaths::resolve(config["model_path"].get<std::string>());
+        _folder_path = RuntimePaths::resolve(config["motion_path"].get<std::string>());
         _anchor_terminate_thresh = config["safe_projgravity_threshold"].get<float>();
         _start_refer_idx = config["start_idx"].get<int>();
         _pause_refer_idx = config["pause_idx"].get<int>();

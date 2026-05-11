@@ -6,6 +6,7 @@
 #include "interface/IOInterface.h"
 #include "interface/CmdPanel.h"
 #include "common/DancePolicyManager.h"
+#include "common/RuntimePaths.h"
 #include <string>
 #include <iostream>
 
@@ -16,8 +17,8 @@ public:
         lowCmd = new LowlevelCmd();
         lowState = new LowlevelState();
         danceManager = new DancePolicyManager(
-            std::string(PROJECT_ROOT_DIR) + "/config/wbc_dances.json",
-            std::string(PROJECT_ROOT_DIR));
+            RuntimePaths::resolve("config/wbc_dances.json"),
+            RuntimePaths::root());
         exitFlag = false;
     }
     ~CtrlComponents(){

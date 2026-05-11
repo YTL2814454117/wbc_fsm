@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include "FSM/State_FixedStand.h"
+#include "common/RuntimePaths.h"
 
 State_FixedStand::State_FixedStand(CtrlComponents *ctrlComp)
     : FSMState(ctrlComp, FSMStateName::FIXEDSTAND, "fixed stand") {}
@@ -17,7 +18,7 @@ void State_FixedStand::enter()
     _phase = 0;
     _duration = 2.0;
     _fixedstand_complete_flag = false;
-    std::string config_path = std::string(PROJECT_ROOT_DIR) + "/config/fixedpose.json";
+    std::string config_path = RuntimePaths::resolve("config/fixedpose.json");
     std::ifstream config_file(config_path);
     if (!config_file.is_open())
     {
